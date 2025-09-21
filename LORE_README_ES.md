@@ -172,3 +172,16 @@ Sin embargo el modelo propiamente dicho y la sesión así como el prompting pued
 #### Mecanismo de shutdown grácil
 
 En entornos de mierda, como por ejemplo el famoso "Ventanas", es habitual que el Ctrl+C que haces en la consola de tu servidor nodejs además de parar tu servicio AI te reviente el sistema operativa. Ahora, puede salirte tanto la pantalla azul como la negra. Pero es dead seguro. Una route de "down" sería imprescindible para el dispose de las instancias llama.
+
+### ¿Algunos tips?
+
+Lo ideal sería:
+
+- Montas y lanzas
+- En ecoin: Te bajas las keys de ecoin
+- Te sacas la address de la ecoin
+
+- En oasis: Te configuras el avatar
+- Te configuras la address de ecoin
+- Te bajas la base de datos (no tiene keys, solo avatar y datos)
+- Te bajas las keys
