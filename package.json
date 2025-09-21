@@ -1,7 +1,7 @@
 {
-  "name": "mpc-wrapper-plugin",
+  "name": "alephscript-mcp-mesh-sdk",
   "version": "0.0.1",
-  "description": "",
+  "description": "This is an experimental only theoric project about how MCP servers can mesh to provide context in query/answers mesh behaviour (mainly with Oasis-42 in mind)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
