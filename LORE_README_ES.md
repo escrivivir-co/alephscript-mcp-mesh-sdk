@@ -2,6 +2,46 @@ IMPORTANTE: Revisar términos de la [licencia](./LICENSE.md) antes de empezar a 
 
 # Hacklab nº3 (sept 25)
 
+Aquella solitaria fría tarde de domingo de principios de año nuevo (buscar palabras clave: "anticristo", "1888", "finales de septiembre") sabía que tenía algo entre manos que podría valer la pena. Me gustaba que el medio no tuviera competencia con el fin; que ambos estaban siendo cuidados.
+
+Lo mejor de saber que no sabes nada, (parafraseando a Sócrates, antiguo filósofo de la Grecia), es que si tomas papel y lapiz (o IDE) y anotas lo que no sabes puedes componer un mapa (o proyecto) más o menos viable para solucionar ese problemilla de "no saber nada". Al saber que no sabes, sabes que tienes que montar un dispositivo de aprendizaje. Y, en esas, que tienes la oportunidad del Sapere Aude; ese mágico convenio sapiens de "atreverse" a saber. En perjuicio, claro, del no saber. La diferencia entre la ciencia y lo mismo pero con el prefijo nes-.
+
+Este contexto es el que me sirve para presentar "los resultados" y "propósitos" del Hacklab nº3. A saber:
+
+## Algunas panorámmicas
+
+![](./LORE/FLOW.png)
+
+## Cosas releseables
+
+### NET SDK
+
+![](./LORE/NET_SDK.png)
+
+### MESH SDK
+
+![](./LORE/MESH_SDK.png)
+
+#### Modos
+
+![](./LORE/MODO.png)
+
+### MODEL SDK
+
+#### Cómo arranca?
+![](./LORE/MODEL_SDK_1.png)
+
+#### Qué hace?
+
+A la izquierda el server. A la derecha un cliente manda un curl.
+
+![](./LORE/MODEL_SDK_2.png)
+
+#### Detalles?
+![](./LORE/MODEL_SDK_3a.png)
+![](./LORE/MODEL_SDK_3b.png)
+![](./LORE/MODEL_SDK_3c.png)
+
 Según quién lo cuente, en mi opinión (aunque creo es evidencia compartida por muchos), el mismo pedazo histórico fue una cosa y otra. Pasa que al "contarlo" se enfoca aquí o acullá; se enfatiza esto o se omite lo otro. La idea de "actas" como registro escrito consensuado por todos viene al rescate. Pero, como sabemos, todo el trabajo "meta" a la postre se lo comen gente que tienen que incorporar a su coletario una coletilla que apostille: "¡El que la propone, se la comeee!".
 
 Así, si Lucia cuenta cómo fue el Hacklab 3 (sept 2025) sobre el "aquende" o de las cosas cerquitas lo haría enlzando las [pic](./pics) que ella misma iba tomando cada hora o cada cuando se acordaba o cada cuando en la espiral de sucesos que ocurren en la sesión del hacklab se llegaba a un fulcro, como punto de engarce a otra cosa y, entonces, aprovechaba para sacar la foto "fin" del momento que acababa y la foto "ini" del momento que empezaba. Ella misma, Lucía, era participante así que en momentos de inmersión, obvio, no acudía a esta regla no escrita.
