@@ -91,6 +91,44 @@ La dificultad entonces estriba en:
 Se puede hacer desde la web o con postman o usando numerosos archivos bash con llamadas tipo en curl; o, por qué no, con Copilot en VS Code.
 
 
+### ¿Se puede instalar todo desde 0?
+Seguro que se podría, pero de momento lo que hay es la base de lab que se ha ido montando. Para probar.
 
+### ¿Se puede arrancar y ejecutar la secuencia de prueba?
+Sí, tira bien la cosa. Éxito.
 
+Todos los scripts de tipo "query" del package.json de alephscript-mcp-model-sdk "hacen algo". Mejor o peor, pero lo hacen. Eso sí, es urgente refactorizar la estructura del servicio para la gestión correcta del modelo ya que ahora cada "handler" carga su propia instancia. Además, es necesario un mecanismo de shutdown grácil porque no es conveniente matar el proceso del nodejs con todo eso cargado en la GPU o la CPU.
 
+Y en la web, en la ruta /ai se envía el mensaje y la respuesta llega aunque... (se necesista: Mejor prompt context pattern entre Oasis y el as-model-sdk).
+
+### ¿Entonces? ¿Cómo queda?
+
+#### Mejor prompt context pattern entre Oasis y el as-model-sdk
+
+Tras el conexionado dummy que se ha hecho, cuando se envía una petición a 42 llega este payload a as-mcp-model-sdk/ai_Service:
+
+```js
+{
+  input: 'What is Oasis?',
+  context: '[CONTEXT][/CONTEXT]\n' +
+    'Consulta específica: "What is Oasis?"\n' +
+    'Palabras clave: what, oasis?',
+  prompt: 'Provide an informative and precise response.'
+}
+```
+
+Luego, además, se junta con la info de las tools, esto hace que retorne garbage porque se sale de cualquier carril conocido, :-D. Sin embargo, esto no es trivial ya que, i.e., estamos trabajando con el ingenio de la 0.4.9 y en la 0.5.0 el algoritmo ha cambiado. Por tanto no se trata tanto de definir una estructura de mensajería como integrar el proceso:
+
+```mermaid
+
+```
+
+#### Refactorizar la estructura del servicio para la gestión correcta del modelo
+
+La forma en la que se crea el objeto llama determina la funcionalidad CPU/GPU.
+
+Sin embargo el modelo propiamente dicho y la sesión así como el prompting pueden compartirse. Hay que crear stacks para casos gradando si hay recursos o no.
+
+#### Mecanismo de shutdown grácil
+
+En entornos de mierda, como por ejemplo el famoso "Ventanas", es habitual que el Ctrl+C que haces en la consola de tu servidor nodejs además de parar tu servicio AI te reviente el sistema operativa. Ahora, puede salirte tanto la pantalla azul como la negra. Pero es dead seguro. Una route de "down" sería imprescindible para el dispose de las instancias llama.
