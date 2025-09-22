@@ -1,5 +1,5 @@
 /**
- * X+1 MCP Machine Server
+ * AS_MCP_MESH_SDK Server
  * Provides tools, resources and prompts for X+1 inductive pattern management
  */
 
@@ -81,7 +81,7 @@ interface SharedGameState {
 }
 
 /**
- * X+1 MCP Machine Server
+ * AS_MCP_MESH_SDK Server
  * Handles the X+1 inductive pattern logic via MCP protocol
  */
 export class MCPStateMachineServer extends BaseMCPServer {
