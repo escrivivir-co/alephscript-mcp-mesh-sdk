@@ -20,6 +20,15 @@
     }
   }
 
+  function updateSelectedHidden(){
+    const hidden = document.getElementById('selectedItems');
+    if(hidden){
+      const selected = Array.from(document.querySelectorAll('input[type="checkbox"][name="selected[]"]:checked')).map(cb => cb.value);
+      hidden.value = JSON.stringify(selected);
+      log('Updated selectedItems:', selected.length);
+    }
+  }
+
   function syncInitialState(root){
     const pills = (root || document).querySelectorAll('.mcp-select-pill[data-checkbox-id]');
     pills.forEach(function(btn){
@@ -30,6 +39,7 @@
       }
     });
     log('Pills ready:', pills.length);
+    updateSelectedHidden();
   }
 
   function toggleFromButton(btn){
@@ -66,6 +76,7 @@
     cb.checked = !cb.checked;
     log('Toggle selection', { id: id, checked: cb.checked });
     applyPillVisual(btn, cb.checked);
+    updateSelectedHidden();
   }
 
   function onChange(e){
@@ -75,6 +86,7 @@
     if(!el.name || el.name !== 'selected[]') return;
     const pill = document.querySelector('.mcp-select-pill[data-checkbox-id="' + el.id + '"]');
     if(pill){ applyPillVisual(pill, el.checked); }
+    updateSelectedHidden();
   }
 
   function init(){
@@ -149,19 +161,64 @@
 
     // Initial and reactive updates
     updateSelectedContextTree();
+    updateSelectedHidden();
     document.addEventListener('change', function(ev){
       const el = ev.target;
       if(el && el.matches && el.matches('input[type="checkbox"][name="selected[]"]')){
         updateSelectedContextTree();
+        updateSelectedHidden();
       }
     });
     document.addEventListener('click', function(ev){
       const btn = ev.target.closest && ev.target.closest('.mcp-select-pill');
       if(btn && btn.getAttribute('data-disabled') !== 'true'){
         // after pill toggles, reflect in tree
-        setTimeout(updateSelectedContextTree, 0);
+        setTimeout(function(){
+          updateSelectedContextTree();
+          updateSelectedHidden();
+        }, 0);
       }
     });
+
+    // Log form submission with payload details (verbose-only)
+    const form = document.querySelector('form.mcp-form');
+    if(form){
+      form.addEventListener('submit', function(e){
+        e.preventDefault(); // Prevent page reload
+        const presetName = form.querySelector('input[name="presetName"]').value;
+        const selectedItems = JSON.parse(form.querySelector('#selectedItems').value || '[]');
+        const payload = { presetName, selectedItems };
+        console.log('Sending payload:', payload);
+        
+        fetch(form.action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(response => {
+          console.log('Response status:', response.status);
+          return response.text();
+        }).then(data => {
+          console.log('Response data:', data);
+          // For now, reload the page to show the result
+          window.location.reload();
+        }).catch(error => {
+          console.error('Error sending form:', error);
+        });
+      });
+      
+      form.addEventListener('submit', function(e){
+        if(!verbose) return; // don't interfere, just log when verbose
+        try {
+          const nameInput = form.querySelector('input[name="presetName"]');
+          const presetName = nameInput && nameInput.value || '';
+          const selected = collectSelected();
+          console.group('[MCP Catalog] Submit preset');
+          console.log('presetName:', presetName);
+          console.log('selectedItems:', selected);
+          console.groupEnd();
+        } catch(_) {}
+      });
+    }
   }
 
   if(document.readyState === 'loading'){

@@ -63,6 +63,7 @@ export class UIServer {
                 ]);
                 mcpCatalog = catRes;
                 mcpPresets = preRes;
+                Logger.info(`Fetched MCP data: catalog servers=${mcpCatalog?.catalog?.length || 0}, presets=${mcpPresets?.presets?.length || 0}`);
             } catch (e) {
                 Logger.e(`Error prefetching MCP data: ${e}`);
             }
@@ -73,38 +74,84 @@ export class UIServer {
         this.app.post('/ai/ui/mcp/set', async (req, res) => {
             try {
                 const bodyAny: any = req.body || {};
-                const presetNameRaw = bodyAny.presetName;
-                const rawSelected = bodyAny.selected ?? bodyAny['selected[]'];
-                const arr: string[] = Array.isArray(rawSelected)
-                    ? rawSelected
-                    : (typeof rawSelected === 'string' ? [rawSelected] : []);
 
-                const selectedItems: MCPPresetSavePayload['selectedItems'] = arr.map((v: string) => {
-                    const [serverName, type, name] = String(v).split('|');
-                    // narrow type when possible
-                    const t = (type === 'tool' || type === 'resource' || type === 'prompt') ? type : 'tool';
-                    return { serverName, type: t, name };
-                });
+                console.log("Received /ai/ui/mcp/set", req.body)
+
+                const wantsJson = String(req.headers['accept'] || '').includes('application/json') || req.is('application/json');
+                const presetNameRaw = bodyAny.presetName;
+                let selectedItems: MCPPresetSavePayload['selectedItems'] = [];
+                if (Array.isArray(bodyAny.selectedItems)) {
+                    if (bodyAny.selectedItems.length > 0 && typeof bodyAny.selectedItems[0] === 'string') {
+                        // Array of strings like "server|type|name"
+                        selectedItems = bodyAny.selectedItems.map((v: string) => {
+                            const [serverName, type, name] = String(v).split('|');
+                            const t = (type === 'tool' || type === 'resource' || type === 'prompt') ? type : 'tool';
+                            return { serverName, type: t, name };
+                        });
+                    } else {
+                        // JSON shape directly provided by client
+                        selectedItems = bodyAny.selectedItems
+                            .filter((it: any) => it && typeof it.serverName === 'string' && typeof it.name === 'string' && typeof it.type === 'string')
+                            .map((it: any) => ({
+                                serverName: String(it.serverName),
+                                name: String(it.name),
+                                type: (it.type === 'tool' || it.type === 'resource' || it.type === 'prompt') ? it.type : 'tool',
+                            }));
+                    }
+                } else {
+                    // Form-encoded shape from checkboxes: selected[]
+                    const rawSelected = bodyAny.selected ?? bodyAny['selected[]'];
+                    const arr: string[] = Array.isArray(rawSelected)
+                        ? rawSelected
+                        : (typeof rawSelected === 'string' ? [rawSelected] : []);
+                    selectedItems = arr.map((v: string) => {
+                        const [serverName, type, name] = String(v).split('|');
+                        const t = (type === 'tool' || type === 'resource' || type === 'prompt') ? type : 'tool';
+                        return { serverName, type: t, name };
+                    });
+                }
 
                 const payload: MCPPresetSavePayload = {
                     presetName: (presetNameRaw && String(presetNameRaw).trim()) || `mcp-preset-${new Date().toISOString()}`,
                     selectedItems,
                 };
 
-                const resp = await fetch(`${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/set`, {
+                Logger.info(`[UI] /ai/ui/mcp/set received. presetName="${payload.presetName}", selectedItems=${selectedItems.length}`);
+                if (selectedItems.length === 0) {
+                    const flash = 'No hay elementos seleccionados para guardar';
+                    Logger.info(`[UI] Skipping upstream call: ${flash}`);
+                    return res.redirect(`/ai?flash=${encodeURIComponent(flash)}`);
+                }
+
+                const url = `${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/set`;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+                Logger.info(`[UI] Proxying preset save -> ${url}`);
+                const resp = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify(payload),
-                });
+                    signal: controller.signal,
+                }).finally(() => clearTimeout(timeout));
+                Logger.info(`[UI] Upstream response status: ${resp.status}`);
                 const data = await resp.json().catch(() => ({} as MCPPresetSaveResponse)) as MCPPresetSaveResponse;
+
+                if (wantsJson) {
+                    return res.status(resp.status).json(data);
+                }
 
                 const flash = data && data.success
                     ? `Preset ${data?.preset?.name || payload.presetName} guardado (${data?.preset?.itemsCount?.total ?? selectedItems.length} elementos)`
-                    : String(data?.details || data?.error || 'Error guardando preset');
+                    : String(data?.details || data?.error || `Error guardando preset (status ${resp.status})`);
 
                 res.redirect(`/ai?flash=${encodeURIComponent(flash)}`);
+                
             } catch (error: any) {
                 Logger.e(`Error proxy MCP preset save: ${error?.message || error}`);
+                const wantsJson = String(req.headers['accept'] || '').includes('application/json') || req.is('application/json');
+                if (wantsJson) {
+                    return res.status(500).json({ success: false, error: 'Error guardando preset', details: String(error?.message || error) });
+                }
                 res.redirect(`/ai?flash=${encodeURIComponent('Error guardando preset')}`);
             }
         });

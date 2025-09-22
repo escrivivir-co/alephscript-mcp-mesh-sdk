@@ -415,7 +415,10 @@ function mcpCatalogView(mcpData) {
                 style: "padding: 1.5rem;"
             },
             form(
-                { method: 'POST', action: '/ai/ui/mcp/set', class: 'mcp-form' },
+                { method: 'POST', action: '/ai/ui/mcp/set', class: 'mcp-form', id: 'mcp-preset-form', onsubmit: "console.log('Form data:', Object.fromEntries(new FormData(this))); const checkboxes = this.querySelectorAll('input[type=\"checkbox\"][name=\"selected[]\"]'); console.log('Checkboxes:', Array.from(checkboxes).map(cb => ({id: cb.id, checked: cb.checked, value: cb.value}))); return true;" },
+                
+                // Hidden input for selected items
+                input({ type: 'hidden', name: 'selectedItems', id: 'selectedItems', value: '[]' }),
                 
                 // Compact preset bar
                 div(

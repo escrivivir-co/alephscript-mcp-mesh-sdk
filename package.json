@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "web:io": "start http://localhost:3010/ui",
-    "web:ai": "start http://localhost:3011/ai",
+    "web:ai": "start http://localhost:3011/ai?mcpDebug=1",
     "clean": "rimraf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:v": "npx tsc --build --verbose",
