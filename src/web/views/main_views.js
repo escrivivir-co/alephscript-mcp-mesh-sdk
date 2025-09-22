@@ -1,6 +1,6 @@
 const { 
     html, head, body, title, meta, link, div, nav, ul, li, a, span, 
-    main, section, h1, h2, p, button, form, input, select, option 
+    main, section, h1, h2, p, button, form, input, select, option, script 
 } = require('hyperaxe');
 
 const { getCurrentTheme, getAvailableThemes } = require('../controllers/ThemeController.js');
@@ -80,7 +80,9 @@ const template = (titlePrefix, ...elements) => {
             div(
                 { class: "footer" },
                 p(`${i18n.appTitle} - Powered by MCP`)
-            )
+            ),
+            // Inject catalog behavior script globally (safe to include on all pages)
+            script({ src: "/assets/js/mcp-catalog.js" })
         )
     );
     return doctypeString + nodes.outerHTML;

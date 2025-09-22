@@ -46,6 +46,16 @@ export class UIServer {
             let mcpCatalog: MCPCatalogResponse | null = null;
             let mcpPresets: MCPPresetsListResponse | null = null;
             const flash = (req.query && typeof (req.query as any).flash === 'string') ? (req.query as any).flash : '';
+            const debug = (() => {
+                const v = (req.query && (req.query as any).debug);
+                if (v === undefined || v === null) return false;
+                if (typeof v === 'string') return v === '1' || v.toLowerCase() === 'true' || v.toLowerCase() === 'yes';
+                if (Array.isArray(v)) {
+                    const s = String(v[0] ?? '').toLowerCase();
+                    return s === '1' || s === 'true' || s === 'yes';
+                }
+                return Boolean(v);
+            })();
             try {
                 const [catRes, preRes] = await Promise.all([
                     fetchJsonTyped<MCPCatalogResponse>(`${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/list`),
@@ -56,7 +66,7 @@ export class UIServer {
             } catch (e) {
                 Logger.e(`Error prefetching MCP data: ${e}`);
             }
-            res.send(aiView([], '', { mcpCatalog, mcpPresets, flash }));
+            res.send(aiView([], '', { mcpCatalog, mcpPresets, flash, debug }));
         });
 
         // Proxy para guardar preset MCP desde el formulario de la UI

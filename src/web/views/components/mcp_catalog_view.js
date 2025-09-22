@@ -3,7 +3,7 @@ const { aiI18n } = require('../i18n/ai_i18n');
 const { generateSafeId } = require('../helpers/view_helpers');
 
 /**
- * Render compact MCP items with better checkbox interaction
+ * Render compact MCP items with professional selectors and roomier layout
  */
 function renderMCPItemsCompact(server, labelText, items, type) {
     if (!items || !items.length) return null;
@@ -11,7 +11,7 @@ function renderMCPItemsCompact(server, labelText, items, type) {
     return details(
         { 
             class: 'mcp-group',
-            style: 'margin-bottom: 1rem;'
+            style: 'margin-bottom: 1.25rem;'
         },
         summary({ 
             style: `
@@ -19,9 +19,9 @@ function renderMCPItemsCompact(server, labelText, items, type) {
                 color: var(--text-primary);
                 cursor: pointer;
                 user-select: none;
-                padding: 0.5rem 0;
+                padding: 0.75rem 0;
                 border-bottom: 1px solid var(--border-color);
-                margin-bottom: 0.75rem;
+                margin-bottom: 1rem;
                 display: flex;
                 align-items: center;
                 gap: 0.5rem;
@@ -34,9 +34,12 @@ function renderMCPItemsCompact(server, labelText, items, type) {
             { 
                 class: 'mcp-items-container',
                 style: `
-                    max-height: 200px;
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+                    gap: 0.75rem;
+                    max-height: 360px;
                     overflow-y: auto;
-                    padding-right: 0.5rem;
+                    padding: 0.25rem 0.5rem 0.5rem 0;
                 `
             },
             ...items.map(item => renderMCPItemCompact(server, item, type))
@@ -54,8 +57,8 @@ function renderMCPItemCompact(server, item, type) {
         { 
             class: 'mcp-item',
             style: `
-                margin-bottom: 0.75rem;
-                padding: 0.75rem;
+                margin-bottom: 0.25rem;
+                padding: 0.85rem;
                 background: var(--background-secondary);
                 border: 1px solid var(--border-color);
                 border-radius: 4px;
@@ -64,35 +67,43 @@ function renderMCPItemCompact(server, item, type) {
             onmouseover: !server.isConnected ? '' : "this.style.borderColor='var(--primary-color)'",
             onmouseout: !server.isConnected ? '' : "this.style.borderColor='var(--border-color)'"
         },
-        // Main checkbox and label
+        // Selection pill and title/description
         div(
             { 
                 style: 'display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.5rem;'
             },
+            // Hidden checkbox that will be toggled by the pill button
             input({
                 type: 'checkbox',
                 id,
                 name: 'selected[]',
                 value: `${server.serverName}|${type}|${item.name}`,
                 disabled: !server.isConnected,
-                style: `
-                    margin-top: 0.2rem;
-                    cursor: ${!server.isConnected ? 'not-allowed' : 'pointer'};
-                    transform: scale(1.2);
-                `
+                style: 'display:none;'
             }),
-            label(
-                { 
-                    for: id, 
-                    style: `
-                        flex: 1;
-                        cursor: ${!server.isConnected ? 'not-allowed' : 'pointer'};
-                        color: ${!server.isConnected ? 'var(--text-secondary)' : 'var(--text-primary)'};
-                        font-weight: 500;
-                        line-height: 1.4;
-                    `
-                },
-                div({ style: 'margin-bottom: 0.25rem;' }, item.name),
+            
+            button({
+                type: 'button',
+                'aria-pressed': 'false',
+                class: 'mcp-select-pill',
+                'data-checkbox-id': id,
+                'data-disabled': !server.isConnected ? 'true' : 'false',
+                'aria-disabled': !server.isConnected ? 'true' : 'false',
+                style: `
+                    white-space: nowrap;
+                    padding: 0.35rem 0.6rem;
+                    border-radius: 999px;
+                    border: 1px solid var(--border-color);
+                    background: var(--background-primary);
+                    color: ${!server.isConnected ? 'var(--text-secondary)' : 'var(--text-primary)'};
+                    cursor: ${!server.isConnected ? 'not-allowed' : 'pointer'};
+                    font-size: 0.85em;
+                    font-weight: 600;
+                    line-height: 1;
+                `
+            }, !server.isConnected ? 'No disponible' : 'Seleccionar'),
+            div({ style: 'flex:1;' },
+                div({ style: 'margin-bottom: 0.15rem; font-weight: 600; color: var(--text-primary);' }, item.name),
                 item.description ? div({ 
                     style: 'font-size: 0.85em; color: var(--text-secondary); font-weight: normal;' 
                 }, item.description) : null
@@ -150,14 +161,14 @@ function renderSchemaDetailsCompact(item, type) {
         const required = item.parameters.required || [];
         
         return details(
-            { style: 'margin-top: 0.5rem;' },
+            { style: 'margin-top: 0.75rem;' },
             summary({ 
                 style: `
                     font-size: 0.8em;
                     color: var(--accent-color);
                     cursor: pointer;
                     user-select: none;
-                    padding: 0.25rem 0;
+                    padding: 0.35rem 0;
                 `
             }, 
                 `📋 ${aiI18n.mcpViewSchema} (${paramCount} params, ${required.length} required)`
@@ -165,12 +176,12 @@ function renderSchemaDetailsCompact(item, type) {
             div(
                 { 
                     style: `
-                        margin-top: 0.5rem;
-                        padding: 0.75rem;
+                        margin-top: 0.6rem;
+                        padding: 0.9rem;
                         background: var(--background-primary);
                         border: 1px solid var(--border-color);
                         border-radius: 4px;
-                        max-height: 200px;
+                        max-height: 420px;
                         overflow-y: auto;
                     `
                 },
@@ -195,7 +206,7 @@ function renderMCPServerCardCompact(server) {
     return details(
         { 
             class: 'mcp-server-card', 
-            style: 'margin-bottom: 0.5rem;',
+            style: 'margin-bottom: 0.75rem;',
             open: server.isConnected // Auto-open if connected
         },
         
@@ -203,7 +214,7 @@ function renderMCPServerCardCompact(server) {
         summary({ 
             class: 'mcp-server-summary',
             style: `
-                padding: 0.75rem 1rem;
+                padding: 0.9rem 1rem;
                 cursor: pointer;
                 user-select: none;
                 background: var(--background-secondary);
@@ -243,7 +254,7 @@ function renderMCPServerCardCompact(server) {
         div(
             { 
                 class: 'mcp-server-content',
-                style: 'padding: 1rem; background: var(--background-primary); border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 6px 6px;'
+                style: 'padding: 1.1rem; background: var(--background-primary); border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 6px 6px;'
             },
             renderMCPItemsCompact(server, aiI18n.mcpToolsLabel, server.tools, 'tool'),
             renderMCPItemsCompact(server, aiI18n.mcpResourcesLabel, server.resources, 'resource'),
@@ -264,9 +275,10 @@ function renderMCPCatalogScrollable(servers) {
                 background: var(--background-primary); 
                 border: 1px solid var(--border-color); 
                 border-radius: 8px; 
-                max-height: 600px;
+                max-height: 70vh;
                 overflow-y: auto;
                 overflow-x: hidden;
+                padding: 0.25rem;
             `
         },
         servers.length === 0
