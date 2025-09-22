@@ -38,7 +38,10 @@ const aiI18n = {
     mcpTotalLabel: 'Total',
     mcpConnected: '(connected)',
     mcpNotConnected: '(not connected)',
-    mcpArgsLabel: 'Args'
+    mcpArgsLabel: 'Args',
+    mcpSelectedContext: 'Contexto seleccionado',
+    mcpSelectedNone: 'Ningún elemento seleccionado',
+    mcpSelectedCount: 'Seleccionados'
 };
 
 module.exports = {

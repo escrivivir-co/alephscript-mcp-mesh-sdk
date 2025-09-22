@@ -88,6 +88,80 @@
       toggleFromButton(btn);
     };
     log('Initialized');
+
+    // Build and update selected context tree
+    function parseValue(v){
+      // expected format: server|type|name
+      const parts = String(v || '').split('|');
+      return { server: parts[0] || '', type: parts[1] || '', name: parts[2] || '' };
+    }
+
+    function collectSelected(){
+      const list = Array.from(document.querySelectorAll('input[type="checkbox"][name="selected[]"]:checked'));
+      return list.map(function(cb){ return parseValue(cb.value); });
+    }
+
+    function groupByServerAndType(items){
+      const map = {};
+      items.forEach(function(it){
+        if(!it.server) return;
+        map[it.server] = map[it.server] || { tools: [], resources: [], prompts: [] };
+        if(it.type === 'tool') map[it.server].tools.push(it.name);
+        else if(it.type === 'resource') map[it.server].resources.push(it.name);
+        else if(it.type === 'prompt') map[it.server].prompts.push(it.name);
+      });
+      return map;
+    }
+
+    function renderTreeHTML(grouped){
+      const servers = Object.keys(grouped);
+      if(servers.length === 0){
+        return '<em>Ningún elemento seleccionado</em>';
+      }
+      function renderList(title, arr){
+        if(!arr || arr.length === 0) return '';
+        return '<div style="margin: 0.25rem 0 0.25rem 0.5rem;">' +
+               '<strong>' + title + ':</strong> ' +
+               arr.map(function(n){ return '<code>' + n + '</code>'; }).join(', ') +
+               '</div>';
+      }
+      return servers.map(function(s){
+        const g = grouped[s];
+        return '<div style="margin-bottom: 0.5rem;">' +
+               '<div><strong>🖥️ ' + s + '</strong></div>' +
+               renderList('Tools', g.tools) +
+               renderList('Resources', g.resources) +
+               renderList('Prompts', g.prompts) +
+               '</div>';
+      }).join('');
+    }
+
+    function updateSelectedContextTree(){
+      const items = collectSelected();
+      const grouped = groupByServerAndType(items);
+      const total = items.length;
+      const summary = document.getElementById('mcp-selected-summary');
+      const tree = document.getElementById('mcp-selected-tree');
+      if(summary){ summary.textContent = 'Seleccionados: ' + total; }
+      if(tree){ tree.innerHTML = renderTreeHTML(grouped); }
+      log('Selected updated', { total, grouped });
+    }
+
+    // Initial and reactive updates
+    updateSelectedContextTree();
+    document.addEventListener('change', function(ev){
+      const el = ev.target;
+      if(el && el.matches && el.matches('input[type="checkbox"][name="selected[]"]')){
+        updateSelectedContextTree();
+      }
+    });
+    document.addEventListener('click', function(ev){
+      const btn = ev.target.closest && ev.target.closest('.mcp-select-pill');
+      if(btn && btn.getAttribute('data-disabled') !== 'true'){
+        // after pill toggles, reflect in tree
+        setTimeout(updateSelectedContextTree, 0);
+      }
+    });
   }
 
   if(document.readyState === 'loading'){

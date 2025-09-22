@@ -351,6 +351,20 @@ function renderMCPSummaryCompact(totals, presets) {
                 style: "margin: 0 0 0.75rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;" 
             }, "💾", aiI18n.mcpPresets),
             renderPresetsListCompact(presets)
+        ),
+
+        // Selected context tree (live)
+        div(
+            { id: 'mcp-selected-context', style: 'margin-top: 1rem;' },
+            h3({ style: 'margin: 0 0 0.5rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;' }, '🧩', aiI18n.mcpSelectedContext),
+            div({
+                id: 'mcp-selected-summary',
+                style: 'font-size: 0.85em; color: var(--text-secondary); margin-bottom: 0.5rem;'
+            }, `${aiI18n.mcpSelectedCount}: 0`),
+            div({
+                id: 'mcp-selected-tree',
+                style: 'max-height: 220px; overflow-y: auto; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.8em; color: var(--text-secondary);'
+            }, aiI18n.mcpSelectedNone)
         )
     );
 }
