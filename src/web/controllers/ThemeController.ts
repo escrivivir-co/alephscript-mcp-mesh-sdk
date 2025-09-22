@@ -22,6 +22,7 @@ export class ThemeController {
     public getAvailableThemes(): string[] {
         return [
             'Dark-MCP',
+            'Orange-Dark-MCP',
             'Matrix-MCP',
             'Purple-MCP',
             'Clear-MCP'

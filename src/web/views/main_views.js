@@ -33,8 +33,8 @@ const navLink = ({ href, emoji, text, current = false }) =>
 
 const toAttributes = (obj) =>
     Object.entries(obj)
-        .map(([key, val]) => `${key}=${val}`)
-        .join(", ");
+        .map(([key, val]) => `${key}="${val}"`)
+        .join(" ");
 
 const template = (titlePrefix, ...elements) => {
     const currentTheme = getCurrentTheme();

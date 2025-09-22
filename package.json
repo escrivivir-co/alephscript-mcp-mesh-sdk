@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "webio": "start http://localhost:3010/ui",
+    "web:io": "start http://localhost:3010/ui",
+    "web:ai": "start http://localhost:3011/ai",
     "clean": "rimraf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:v": "npx tsc --build --verbose",

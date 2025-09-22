@@ -1,6 +1,8 @@
 import express from 'express';
 import path from 'path';
 import { Logger } from '../Logger';
+import { MCPCatalogResponse, MCPPresetsListResponse, MCP_MODEL_SDK_SERVER, MCPPresetSavePayload, MCPPresetSaveResponse } from '@/typescript/mcp-catalog-driver';
+import { fetchJsonTyped } from '@/typescript/fetch-typed-json';
 
 export class UIServer {
     private app: express.Application;
@@ -38,9 +40,63 @@ export class UIServer {
         });
 
         // Ruta de la vista AI (portada de mpc_oasis-sdk)
-        this.app.get('/ai', (req, res) => {
+        this.app.get('/ai', async (req, res) => {
             const { aiView } = require('./views/ai_view');
-            res.send(aiView());
+            // Prefetch MCP catalog and presets from backend (CORS enabled)
+            let mcpCatalog: MCPCatalogResponse | null = null;
+            let mcpPresets: MCPPresetsListResponse | null = null;
+            const flash = (req.query && typeof (req.query as any).flash === 'string') ? (req.query as any).flash : '';
+            try {
+                const [catRes, preRes] = await Promise.all([
+                    fetchJsonTyped<MCPCatalogResponse>(`${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/list`),
+                    fetchJsonTyped<MCPPresetsListResponse>(`${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/presets`),
+                ]);
+                mcpCatalog = catRes;
+                mcpPresets = preRes;
+            } catch (e) {
+                Logger.e(`Error prefetching MCP data: ${e}`);
+            }
+            res.send(aiView([], '', { mcpCatalog, mcpPresets, flash }));
+        });
+
+        // Proxy para guardar preset MCP desde el formulario de la UI
+        this.app.post('/ai/ui/mcp/set', async (req, res) => {
+            try {
+                const bodyAny: any = req.body || {};
+                const presetNameRaw = bodyAny.presetName;
+                const rawSelected = bodyAny.selected ?? bodyAny['selected[]'];
+                const arr: string[] = Array.isArray(rawSelected)
+                    ? rawSelected
+                    : (typeof rawSelected === 'string' ? [rawSelected] : []);
+
+                const selectedItems: MCPPresetSavePayload['selectedItems'] = arr.map((v: string) => {
+                    const [serverName, type, name] = String(v).split('|');
+                    // narrow type when possible
+                    const t = (type === 'tool' || type === 'resource' || type === 'prompt') ? type : 'tool';
+                    return { serverName, type: t, name };
+                });
+
+                const payload: MCPPresetSavePayload = {
+                    presetName: (presetNameRaw && String(presetNameRaw).trim()) || `mcp-preset-${new Date().toISOString()}`,
+                    selectedItems,
+                };
+
+                const resp = await fetch(`${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/set`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await resp.json().catch(() => ({} as MCPPresetSaveResponse)) as MCPPresetSaveResponse;
+
+                const flash = data && data.success
+                    ? `Preset ${data?.preset?.name || payload.presetName} guardado (${data?.preset?.itemsCount?.total ?? selectedItems.length} elementos)`
+                    : String(data?.details || data?.error || 'Error guardando preset');
+
+                res.redirect(`/ai?flash=${encodeURIComponent(flash)}`);
+            } catch (error: any) {
+                Logger.e(`Error proxy MCP preset save: ${error?.message || error}`);
+                res.redirect(`/ai?flash=${encodeURIComponent('Error guardando preset')}`);
+            }
         });
 
         // POST para procesar input de AI
@@ -95,10 +151,16 @@ export class UIServer {
         // Ruta para cambiar tema
         this.app.post('/settings/theme', (req, res) => {
             const { theme } = req.body;
+            Logger.info(`Received theme change request: ${theme}`);
             try {
-                const { updateTheme } = require('./controllers/ThemeController');
-                updateTheme(theme);
-                Logger.info(`Theme changed to: ${theme}`);
+                const { ThemeController } = require('./controllers/ThemeController');
+                const themeController = ThemeController.getInstance();
+                const success = themeController.updateTheme(theme);
+                if (success) {
+                    Logger.info(`Theme successfully changed to: ${theme}`);
+                } else {
+                    Logger.e(`Failed to change theme to: ${theme}`);
+                }
             } catch (error) {
                 Logger.e(`Error updating theme: ${error}`);
             }
