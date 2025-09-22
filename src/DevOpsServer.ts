@@ -1,6 +1,7 @@
 import { DevOpsServer } from "./DevOpsServerImpl";
 import { Logger as l } from "./Logger";
 import { SocketIoMesh } from "@alephscript/mcp-core-sdk";
+import { UIServer } from "./web/UIServer";
 /**
  * CLI entry point - run as standalone MCP server
  */
@@ -16,6 +17,10 @@ async function main() {
         const server = new DevOpsServer({});
 		l.i("MCPBasicStateMachineServer Server instance created, starting...");
         await server.start();
+
+        const uiServer = new UIServer();
+        await uiServer.start();
+        console.log("✅ UI Server started on http://localhost:3011");
 
         // Keep process alive
         process.on("SIGINT", () => {

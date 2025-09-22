@@ -1,0 +1,13 @@
+{
+  "themes": {
+    "current": "Purple-MCP"
+  },
+  "server": {
+    "port": 3010,
+    "host": "localhost"
+  },
+  "features": {
+    "aiEnabled": true,
+    "themeSwitcher": true
+  }
+}
