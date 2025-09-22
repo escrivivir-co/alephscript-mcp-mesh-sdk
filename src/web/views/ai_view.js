@@ -2,10 +2,40 @@ const { section } = require("hyperaxe");
 const { template } = require('./main_views');
 
 // Import modular components
-const { mcpCatalogView } = require('./components/mcp_catalog_view');
+const { mcpCatalogView, renderPresetsListCompact } = require('./components/mcp_catalog_view');
 const { renderAIHeader, renderAIInputForm } = require('./components/ai_forms_view');
 const { aiConversationView } = require('./components/ai_conversation_view');
 const { aiI18n } = require('./i18n/ai_i18n');
+
+/**
+ * Render presets and selected context
+ */
+function renderPresetsAndContext(mcpData) {
+    const { presets } = mcpData;
+    const { div, h3 } = require("hyperaxe");
+    return div(
+        { style: "margin-bottom: 1rem; display: flex; gap: 1rem;" },
+        // Presets
+        div(
+            { style: "flex: 1;" },
+            h3({ style: "margin: 0 0 0.5rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;" }, "💾", "Presets"),
+            renderPresetsListCompact(presets)
+        ),
+        // Selected context
+        div(
+            { style: "flex: 1;" },
+            h3({ style: 'margin: 0 0 0.5rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;' }, '🧩', 'Contexto seleccionado'),
+            div({
+                id: 'mcp-selected-summary',
+                style: 'font-size: 0.85em; color: var(--text-secondary); margin-bottom: 0.5rem;'
+            }, 'Seleccionados: 0'),
+            div({
+                id: 'mcp-selected-tree',
+                style: 'max-height: 220px; overflow-y: auto; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.8em; color: var(--text-secondary);'
+            }, 'Ningún elemento seleccionado')
+        )
+    );
+}
 const { processMCPPrefetch } = require('./helpers/view_helpers');
 
 /**
@@ -43,6 +73,7 @@ const aiView = (history = [], userPrompt = '', prefetch = {}) => {
             { class: "ai-container" },
             renderAIHeader(userPrompt),
             renderAIInputForm(),
+            renderPresetsAndContext(mcpData),
             aiConversationView(history)
                 ),
 

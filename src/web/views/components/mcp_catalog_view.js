@@ -345,36 +345,13 @@ function renderMCPSummaryCompact(totals, presets) {
             )
         ),
         
-        // Presets section
-        div(
-            h3({ 
-                style: "margin: 0 0 0.75rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;" 
-            }, "💾", aiI18n.mcpPresets),
-            renderPresetsListCompact(presets)
-        ),
-
-        // Selected context tree (live)
-        div(
-            { id: 'mcp-selected-context', style: 'margin-top: 1rem;' },
-            h3({ style: 'margin: 0 0 0.5rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;' }, '🧩', aiI18n.mcpSelectedContext),
-            div({
-                id: 'mcp-selected-summary',
-                style: 'font-size: 0.85em; color: var(--text-secondary); margin-bottom: 0.5rem;'
-            }, `${aiI18n.mcpSelectedCount}: 0`),
-            div({
-                id: 'mcp-selected-tree',
-                style: 'max-height: 220px; overflow-y: auto; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.8em; color: var(--text-secondary);'
-            }, aiI18n.mcpSelectedNone)
-        )
     );
 }
-
-
 
 /**
  * Main MCP Catalog component - Collapsible and positioned after chat
  */
-function mcpCatalogView(mcpData) {
+export function mcpCatalogView(mcpData) {
     const { servers, statusText, statusColor, flash, ...totals } = mcpData;
     
     return details(
@@ -502,7 +479,7 @@ function renderStatCard(icon, label, count, color) {
 /**
  * Render compact presets list
  */
-function renderPresetsListCompact(presets) {
+export function renderPresetsListCompact(presets, activePreset = null) {
     if (presets.length === 0) {
         return div(
             { 
@@ -523,32 +500,55 @@ function renderPresetsListCompact(presets) {
                 background: var(--background-primary);
             `
         },
-        ...presets.map((preset, index) => div(
-            { 
-                style: `
-                    padding: 0.75rem;
-                    border-bottom: ${index < presets.length - 1 ? '1px solid var(--border-color)' : 'none'};
-                    transition: background-color 0.2s;
-                `,
-                onmouseover: "this.style.backgroundColor='var(--background-hover)'",
-                onmouseout: "this.style.backgroundColor='transparent'"
-            },
-            a({
-                href: `http://localhost:4001/ai/ui/mcp/preset/${encodeURIComponent(preset.name)}`,
-                target: '_blank',
-                rel: 'noopener noreferrer',
-                style: "color: var(--primary-color); text-decoration: none; font-weight: 500;"
-            }, preset.name || '(sin nombre)'),
-            div({
-                style: "font-size: 0.8em; color: var(--text-secondary); margin-top: 0.25rem;"
-            }, `${(preset.itemsCount?.total||0)} items • ${(preset.createdAt||'').substring(0, 10)}`)
-        ))
+        ...presets.map((preset, index) => {
+            const isActive = activePreset && preset.name === activePreset;
+            return div(
+                { 
+                    style: `
+                        padding: 0.75rem;
+                        border-bottom: ${index < presets.length - 1 ? '1px solid var(--border-color)' : 'none'};
+                        transition: background-color 0.2s;
+                        ${isActive ? 'background-color: var(--primary-color-light); border-left: 3px solid var(--primary-color);' : ''}
+                    `,
+                    onmouseover: `this.style.backgroundColor='${isActive ? 'var(--primary-color-light)' : 'var(--background-hover)'}'`,
+                    onmouseout: `this.style.backgroundColor='${isActive ? 'var(--primary-color-light)' : 'transparent'}'`
+                },
+                span({ style: `font-weight: 500; color: var(--text-primary); ${isActive ? 'font-weight: 600;' : ''}` }, preset.name || '(sin nombre)'),
+                isActive ? span({ style: "margin-left: 0.5rem; color: var(--primary-color); font-size: 0.8em; font-weight: 600;" }, "✓ Activo") : 
+                button({
+                    class: 'mcp-load-preset',
+                    'data-preset-name': preset.name,
+                    style: "margin-left: 0.5rem; padding: 0.25rem 0.5rem; background: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em;"
+                }, 'Seleccionar'),
+                div({
+                    style: "font-size: 0.8em; color: var(--text-secondary); margin-top: 0.25rem;"
+                }, `${(preset.itemsCount?.total||0)} items • ${(preset.createdAt||'').substring(0, 10)}`)
+            );
+        })
     );
 }
 
-module.exports = {
-    mcpCatalogView,
-    renderMCPItemsCompact,
-    renderMCPServerCardCompact,
-    renderMCPSummaryCompact
-};
+export function renderPresetsAndContext(mcpData) {
+    const { presets } = mcpData;
+    return div(
+        { style: "margin-bottom: 1rem;" },
+        // Presets
+        div(
+            h3({ style: "margin: 0 0 0.5rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;" }, "💾", "Presets"),
+            renderPresetsListCompact(presets)
+        ),
+        // Selected context
+        div(
+            { id: 'mcp-selected-context', style: 'margin-top: 1rem;' },
+            h3({ style: 'margin: 0 0 0.5rem 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;' }, '🧩', 'Contexto seleccionado'),
+            div({
+                id: 'mcp-selected-summary',
+                style: 'font-size: 0.85em; color: var(--text-secondary); margin-bottom: 0.5rem;'
+            }, 'Seleccionados: 0'),
+            div({
+                id: 'mcp-selected-tree',
+                style: 'max-height: 220px; overflow-y: auto; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.8em; color: var(--text-secondary);'
+            }, 'Ningún elemento seleccionado')
+        )
+    );
+}

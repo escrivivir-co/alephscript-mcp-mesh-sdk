@@ -1,4 +1,4 @@
-const { div, h2, button, form, textarea, br, span, label } = require("hyperaxe");
+const { div, h2, button, form, textarea, br, span, label, input } = require("hyperaxe");
 const { aiI18n } = require('../i18n/ai_i18n');
 
 /**
@@ -52,6 +52,7 @@ function renderAIInputForm() {
                 onfocus: "this.style.borderColor='var(--primary-color)'",
                 onblur: "this.style.borderColor='var(--border-color)'"
             }),
+            input({ type: 'hidden', name: 'selectedItems', id: 'ai-selected-items' }),
             div({ 
                 class: 'ai-form-actions',
                 style: "display: flex; gap: 1rem; justify-content: space-between; align-items: center; margin-top: 1rem;" 

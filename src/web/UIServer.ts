@@ -70,6 +70,22 @@ export class UIServer {
             res.send(aiView([], '', { mcpCatalog, mcpPresets, flash, debug }));
         });
 
+        // Proxy para obtener un preset específico
+        this.app.get('/ai/ui/mcp/preset/:name', async (req, res) => {
+            try {
+                const { name } = req.params;
+                const url = `${MCP_MODEL_SDK_SERVER}/ai/ui/mcp/preset/${encodeURIComponent(name)}`;
+                const resp = await fetch(url);
+                if (!resp.ok) {
+                    return res.status(resp.status).json({ error: 'Failed to fetch preset' });
+                }
+                const data = await resp.json();
+                res.json(data);
+            } catch (error) {
+                Logger.e(`Error fetching preset: ${error}`);
+                res.status(500).json({ success: false, error: String(error) });
+            }
+        });
         // Proxy para guardar preset MCP desde el formulario de la UI
         this.app.post('/ai/ui/mcp/set', async (req, res) => {
             try {
@@ -158,10 +174,10 @@ export class UIServer {
 
         // POST para procesar input de AI
         this.app.post('/ai', (req, res) => {
-            const { input } = req.body;
+            const { input, selectedItems } = req.body;
+            Logger.info(`AI Input received: ${input}, selectedItems: ${selectedItems}`);
             // Aquí se procesaría la entrada de AI
             // Por ahora, simplemente redirigimos de vuelta
-            Logger.info(`AI Input received: ${input}`);
             res.redirect('/ai');
         });
 
