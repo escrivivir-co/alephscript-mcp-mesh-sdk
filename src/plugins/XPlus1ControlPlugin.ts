@@ -1,6 +1,6 @@
 /**
  * XPlus1 Control Plugin for DevOps Server
- * Provides remote control capabilities for the X+1 MCP Machine and UserSimulator
+ * Provides remote control capabilities for the AS_MCP_MESH_SDK and UserSimulator
  */
 
 import { z } from "zod";
@@ -63,7 +63,7 @@ export class XPlus1ControlPlugin
         const config: PluginConfig = {
             id: "xplus1-control",
             name: "X+1 Control Plugin",
-            description: "Remote control for X+1 MCP Machine and UserSimulator",
+            description: "Remote control for AS_MCP_MESH_SDK and UserSimulator",
             version: "1.0.0",
             category: "game-control",
             enabled: true,

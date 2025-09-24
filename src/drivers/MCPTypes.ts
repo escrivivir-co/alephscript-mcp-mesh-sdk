@@ -12,7 +12,7 @@ const DEFAULT_MCP_SERVER_CONFIG = [
         script: "npm run mcp:launcher",
         port: 3050,
     },
-    { name: "X+1 MCP Machine", script: "npm run mcp:xplus1", port: 3001 },
+    { name: "AS_MCP_MESH_SDK", script: "npm run mcp:xplus1", port: 3001 },
     { name: "Wiki MCP Browser", script: "npm run mcp:wiki", port: 3002 },
     { name: "DevOps MCP Server", script: "npm run mcp:devops", port: 3003 },
 ];

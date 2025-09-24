@@ -109,7 +109,7 @@ export class DevOpsServer extends BaseMCPServer {
         const mcpServers = [
             {
                 id: "state-machine-server",
-                name: "X+1 MCP Machine",
+                name: "AS_MCP_MESH_SDK",
                 url: "http://localhost:3001",
                 timeout: 5000,
                 maxRetries: 2,
@@ -688,7 +688,7 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
     // ===== LIVE GAME STATE QUERY METHODS =====
 
     /**
-     * Query live game state from X+1 MCP Machine
+     * Query live game state from AS_MCP_MESH_SDK
      */
     private async queryLiveGameState(): Promise<any> {
         if (!this.mcpAdapter) {

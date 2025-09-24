@@ -13,20 +13,20 @@ async function main() {
 
         // Keep process alive
         process.on("SIGINT", () => {
-            console.log("\n🔄 Shutting down X+1 MCP Machine...");
+            console.log("\n🔄 Shutting down AS_MCP_MESH_SDK...");
             server.shutdown().then(() => {
                 process.exit(0);
             });
         });
 
         process.on("SIGTERM", () => {
-            console.log("\n🔄 Shutting down X+1 MCP Machine...");
+            console.log("\n🔄 Shutting down AS_MCP_MESH_SDK...");
             server.shutdown().then(() => {
                 process.exit(0);
             });
         });
     } catch (error) {
-        console.error("❌ Failed to start X+1 MCP Machine:", error);
+        console.error("❌ Failed to start AS_MCP_MESH_SDK:", error);
         process.exit(1);
     }
 }

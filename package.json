@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "web:io": "start http://localhost:3010/ui",
+    "web:ai": "start http://localhost:3011/ai?mcpDebug=1",
     "clean": "rimraf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:v": "npx tsc --build --verbose",
@@ -12,7 +14,10 @@
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "test:watch": "jest --watchAll",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "install:playwright": "code --add-mcp '{\"name\":\"playwright\",\"command\":\"npx\",\"args\":[\"@playwright/mcp@latest\"]}'",
+    "install:inspector": "npx @modelcontextprotocol/inspector",
+    "discover:servers": "start https://mcp.so/ && start https://github.com/modelcontextprotocol/servers && start https://github.com/punkpeye/awesome-mcp-servers"
   },
   "repository": {
     "type": "git",
@@ -27,9 +32,11 @@
   "author": "",
   "license": "AIPLv1",
   "dependencies": {
+    "@alephscript/mcp-core-sdk": "file:../alephscript-mcp-core-sdk/alephscript-mcp-core-sdk-1.0.0.tgz",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "axios": "^1.6.0",
     "express": "^4.18.2",
+    "hyperaxe": "^2.0.1",
     "rxjs": "^7.8.2",
     "uuid": "^9.0.1"
   },
