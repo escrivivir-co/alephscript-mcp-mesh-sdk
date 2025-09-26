@@ -14,7 +14,6 @@
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "test:watch": "jest --watchAll",
-    "prepare": "husky install",
     "install:playwright": "code --add-mcp '{\"name\":\"playwright\",\"command\":\"npx\",\"args\":[\"@playwright/mcp@latest\"]}'",
     "install:inspector": "npx @modelcontextprotocol/inspector",
     "discover:servers": "start https://mcp.so/ && start https://github.com/modelcontextprotocol/servers && start https://github.com/punkpeye/awesome-mcp-servers"
