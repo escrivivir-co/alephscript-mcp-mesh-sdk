@@ -1,0 +1,4 @@
+[submodule "src/zeus-site"]
+	path = src/zeus-site
+	url = ../alephscript-mcp-presets-site
+	branch = dev/sprint05_prompt10
