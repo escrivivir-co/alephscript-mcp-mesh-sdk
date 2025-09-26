@@ -1,3 +1,5 @@
+NOMBRE EN CLAVE / KEY NAME: MCPGaia 
+
 ```mermaid
 sequenceDiagram
     participant User as Usuario

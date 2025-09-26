@@ -6,7 +6,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "web:io": "start http://localhost:3010/ui",
-    "web:ai": "start http://localhost:3011/ai?mcpDebug=1",
+    "web:ai:deprecated": "start http://localhost:3011/ai?mcpDebug=1",
+    "web:zeus": "start http://localhost:3012",
+
+    "web:zeus:install": "sh ./scripts/update-zeus-submodule.sh",
+
     "clean": "rimraf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:v": "npx tsc --build --verbose",

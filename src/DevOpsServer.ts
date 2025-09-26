@@ -10,9 +10,15 @@ async function main() {
     try {
 
 
+        /*
         const uiServer = new UIServer();
         await uiServer.start();
         console.log("✅ UI Server started on http://localhost:3011");
+        */
+
+        // const zeusServer = new UIServer();
+        // await zeusServer.start();
+        // console.log("✅ UI Server started on http://localhost:3011");
 
         /*
         console.log("🚀 Starting SocketIoMesh...");
