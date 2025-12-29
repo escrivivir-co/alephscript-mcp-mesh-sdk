@@ -8,13 +8,14 @@
     "web:io": "start http://localhost:3010/ui",
     "web:ai:deprecated": "start http://localhost:3011/ai?mcpDebug=1",
     "web:zeus": "start http://localhost:3012",
-
     "web:zeus:install": "sh ./scripts/update-zeus-submodule.sh",
-
     "clean": "rimraf dist",
     "build": "npm run clean && tsc -p tsconfig.json",
     "build:v": "npx tsc --build --verbose",
     "start": "cross-env NODE_ENV=development tsx src/DevOpsServer.ts",
+    "start:launcher": "cross-env NODE_ENV=development tsx src/MCPLauncherServer.ts",
+    "start:wiki": "cross-env NODE_ENV=development tsx src/MCPWikiBrowserServerImpl.ts",
+    "start:state": "cross-env NODE_ENV=development tsx src/MCPStateMachineServerImpl.ts",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "test:watch": "jest --watchAll",
@@ -35,7 +36,7 @@
   "author": "",
   "license": "AIPLv1",
   "dependencies": {
-    "@alephscript/mcp-core-sdk": "file:../alephscript-mcp-core-sdk/alephscript-mcp-core-sdk-1.0.0.tgz",
+    "@alephscript/mcp-core-sdk": "file:../mcp-core-sdk",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "axios": "^1.6.0",
     "express": "^4.18.2",
