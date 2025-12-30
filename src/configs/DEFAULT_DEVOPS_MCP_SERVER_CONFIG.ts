@@ -3,7 +3,7 @@ import { BaseMCPServerConfig } from "../MCPServerConfig";
 export const DEFAULT_DEVOPS_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
 	id: "devops-mcp-server",
 	name: "DevOps MCP Server",
-	script: "src/mcp-servers/DevOpsServer.ts",
+	script: "src/DevOpsServer.ts",
 	port: 3003,
 	capabilitiesCheck: {
 		tools: true,

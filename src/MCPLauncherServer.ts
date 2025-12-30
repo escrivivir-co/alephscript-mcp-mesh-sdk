@@ -91,9 +91,20 @@ export class MCPLauncherServer extends BaseMCPServer {
      * Setup MCP Service Launcher specific tools, resources, and prompts
      */
     protected setupServerSpecifics(): void {
+        // Ensure we have a set of launchable server configs when running standalone.
+        // Without this, resources/tools like `available-servers` and `launch_all_servers`
+        // may see an empty config list.
+        if (this.requestToLaunchConfigs.size === 0) {
+            this.requestToLaunchMCPServers(this.appConfig, this.mcpDriver);
+        }
+
         this.setupTools();
         this.setupResources();
         this.setupPrompts();
+
+		this.launchAllServers(true).catch((error) => {	
+            l.e("Error launching all servers", { error });
+        });
     }
 
     /**
@@ -104,10 +115,20 @@ export class MCPLauncherServer extends BaseMCPServer {
         mcpDriver: MCPDriverAdapter | undefined
     ): void {
         this.appConfig = config;
-        Object.keys(this.appConfig.mcp.servers).forEach((key) => {
+        this.requestToLaunchConfigs.clear();
+
+        const serverKeys = Object.keys(this.appConfig?.mcp?.servers ?? {});
+        for (const key of serverKeys) {
             const server: any = getConfigOrDefault(key, this.appConfig);
+            if (!server?.id) {
+                l.w("MCP Launcher: Skipping invalid server config", {
+                    key,
+                    server,
+                });
+                continue;
+            }
             this.requestToLaunchConfigs.set(server.id, server);
-        });
+        }
         this.mcpDriver = mcpDriver;
     }
 

@@ -4,7 +4,7 @@ import { BaseMCPServerConfig } from "../MCPServerConfig";
 export const DEFAULT_LAUNCHER_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
 	id: "mcp-service-launcher",
 	name: "MCP Service Launcher",
-	script: "src/mcp-servers/MCPLauncherServer.ts",
+	script: "src/MCPLauncherServer.ts",
 	port: 3050,
 	description: "Main MCP root node",
 	autoRestart: true,
