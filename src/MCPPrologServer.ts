@@ -9,6 +9,7 @@ import { BaseMCPServer } from "./BaseMCPServer";
 import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "./configs/DEFAULT_PROLOG_MCP_SERVER_CONFIG";
 import { PrologSessionManager } from "./services/PrologSessionManager";
 import { l } from "./Logger";
+import { z } from "zod";
 
 export class MCPPrologServer extends BaseMCPServer {
 	private sessionManager: PrologSessionManager;
@@ -20,9 +21,184 @@ export class MCPPrologServer extends BaseMCPServer {
 	}
 
 	protected setupServerSpecifics(): void {
-		// Tools are registered via the REST API endpoints in BaseMCPServer
-		// The session manager handles the actual Prolog operations
-		l.info("MCPPrologServer tools registered via BaseMCPServer REST endpoints");
+		this.setupTools();
+		this.setupResources();
+		l.info("MCPPrologServer tools and resources registered");
+	}
+
+	/**
+	 * Setup MCP Tools for Prolog operations
+	 */
+	private setupTools(): void {
+		// Tool: Create Prolog session
+		this.server.tool(
+			"prolog_create_session",
+			"Create a new Prolog session for a Teatro obra",
+			{
+				sessionId: z.string().describe("Unique session identifier"),
+				obraId: z.string().describe("Teatro obra identifier"),
+			},
+			async ({ sessionId, obraId }) => {
+				const result = await this.handleCreateSession(sessionId, obraId);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Query Prolog
+		this.server.tool(
+			"prolog_query",
+			"Execute a Prolog query in a session",
+			{
+				sessionId: z.string().describe("Session identifier"),
+				query: z.string().describe("Prolog query to execute (e.g., 'member(X, [1,2,3]).')"),
+			},
+			async ({ sessionId, query }) => {
+				const result = await this.handleQueryProlog(sessionId, query);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Assert fact
+		this.server.tool(
+			"prolog_assert_fact",
+			"Assert a new fact into the Prolog knowledge base",
+			{
+				sessionId: z.string().describe("Session identifier"),
+				fact: z.string().describe("Prolog fact to assert (e.g., 'likes(mary, wine)')"),
+			},
+			async ({ sessionId, fact }) => {
+				const result = await this.handleAssertFact(sessionId, fact);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Consult file
+		this.server.tool(
+			"prolog_consult_file",
+			"Load a Prolog file into the session knowledge base",
+			{
+				sessionId: z.string().describe("Session identifier"),
+				filePath: z.string().describe("Path to .pl file to consult"),
+			},
+			async ({ sessionId, filePath }) => {
+				const result = await this.handleConsultFile(sessionId, filePath);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Destroy session
+		this.server.tool(
+			"prolog_destroy_session",
+			"Destroy a Prolog session and free resources",
+			{
+				sessionId: z.string().describe("Session identifier to destroy"),
+			},
+			async ({ sessionId }) => {
+				const result = await this.handleDestroySession(sessionId);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: List sessions
+		this.server.tool(
+			"prolog_list_sessions",
+			"List all active Prolog sessions",
+			{},
+			async () => {
+				const result = await this.handleListSessions();
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Get templates catalog
+		this.server.tool(
+			"prolog_get_templates",
+			"Get catalog of available Prolog templates for Teatro",
+			{},
+			async () => {
+				const result = await this.handleTemplatesCatalog();
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+	}
+
+	/**
+	 * Setup MCP Resources for Prolog state inspection
+	 */
+	private setupResources(): void {
+		// Resource: Session state
+		this.server.resource(
+			"prolog-session-state",
+			"prolog://sessions/current",
+			{
+				description: "Current state of a Prolog session including metadata",
+				mimeType: "application/json",
+			},
+			async () => {
+				const sessions = await this.handleListSessions();
+				return {
+					contents: [{
+						uri: "prolog://sessions/current",
+						mimeType: "application/json",
+						text: JSON.stringify(sessions, null, 2),
+					}],
+				};
+			}
+		);
+
+		// Resource: Templates catalog
+		this.server.resource(
+			"prolog-templates-catalog",
+			"prolog://templates/catalog",
+			{
+				description: "Available Prolog templates for Teatro agents",
+				mimeType: "application/json",
+			},
+			async () => {
+				const catalog = await this.handleTemplatesCatalog();
+				return {
+					contents: [{
+						uri: "prolog://templates/catalog",
+						mimeType: "application/json",
+						text: JSON.stringify(catalog, null, 2),
+					}],
+				};
+			}
+		);
+
+		// Resource: Active sessions list
+		this.server.resource(
+			"prolog-active-sessions",
+			"prolog://sessions",
+			{
+				description: "List of all active Prolog sessions",
+				mimeType: "application/json",
+			},
+			async () => {
+				const sessions = await this.handleListSessions();
+				return {
+					contents: [{
+						uri: "prolog://sessions",
+						mimeType: "application/json",
+						text: JSON.stringify(sessions, null, 2),
+					}],
+				};
+			}
+		);
 	}
 
 	/**
@@ -221,6 +397,12 @@ export class MCPPrologServer extends BaseMCPServer {
 		await this.sessionManager.shutdown();
 		await super.shutdown();
 	}
+}
+
+// Entry point when run directly
+if (require.main === module) {
+	const server = new MCPPrologServer();
+	server.start();
 }
 
 export default MCPPrologServer;

@@ -159,7 +159,7 @@ export class MCPLauncherServer extends BaseMCPServer {
                             .optional()
                             .describe("Additional arguments"),
                         env: z
-                            .record(z.string())
+                            .record(z.string(), z.string())
                             .optional()
                             .describe("Environment variables"),
                         autoRestart: z
@@ -748,7 +748,6 @@ export class MCPLauncherServer extends BaseMCPServer {
             "launch-session",
             "launcher://session/current",
             {
-                name: "Current Launch Session",
                 description:
                     "Information about the current MCP servers launch session",
                 mimeType: "application/json",
@@ -779,7 +778,6 @@ export class MCPLauncherServer extends BaseMCPServer {
             "available-servers",
             "launcher://servers/available",
             {
-                name: "Available Server Configurations",
                 description:
                     "List of all available MCP servers that can be launched",
                 mimeType: "application/json",
@@ -806,7 +804,6 @@ export class MCPLauncherServer extends BaseMCPServer {
             "launcher-status",
             "launcher://status/global",
             {
-                name: "Global Launcher Status",
                 description: "Overall status of the MCP Service Launcher",
                 mimeType: "application/json",
             },
@@ -842,7 +839,6 @@ export class MCPLauncherServer extends BaseMCPServer {
             "vscode-mcp-config",
             "launcher://vscode/mcp-config",
             {
-                name: "VS Code MCP Configuration",
                 description:
                     "Generated VS Code MCP configuration for running servers",
                 mimeType: "application/json",
