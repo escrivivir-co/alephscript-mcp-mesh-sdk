@@ -4,19 +4,19 @@
  */
 
 import { l } from "../Logger";
-import { PrologServer } from "../../../../AAIAGallery/alephscript/src/FIA/paradigmas/sbr/app/prolog/server";
+import { PrologEngine } from "./PrologEngine";
 
 export interface PrologSession {
 	sessionId: string;
 	obraId: string;
 	createdAt: Date;
 	lastUsedAt: Date;
-	engine: PrologServer;
+	engine: PrologEngine;
 }
 
 export class PrologSessionManager {
 	private sessions: Map<string, PrologSession> = new Map();
-	private cleanupInterval: NodeJS.Timeout | null = null;
+	private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 	private readonly SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
 	private readonly CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -33,7 +33,10 @@ export class PrologSessionManager {
 			throw new Error(`Session ${sessionId} already exists`);
 		}
 
-		const engine = new PrologServer();
+		const engine = new PrologEngine();
+		// Initialize the Prolog engine
+		await engine.initialize();
+		
 		const session: PrologSession = {
 			sessionId,
 			obraId,
@@ -73,7 +76,7 @@ export class PrologSessionManager {
 			// but we clear references
 			session.engine = null as any;
 		} catch (error) {
-			l.error(`Error destroying session ${sessionId}:`, error);
+			l.e(`Error destroying session ${sessionId}:`, error);
 		}
 
 		this.sessions.delete(sessionId);
@@ -134,7 +137,7 @@ export class PrologSessionManager {
 	private startCleanupRoutine(): void {
 		this.cleanupInterval = setInterval(() => {
 			this.cleanupExpiredSessions().catch((error) => {
-				l.error("Error during session cleanup:", error);
+				l.e("Error during session cleanup:", error);
 			});
 		}, this.CLEANUP_INTERVAL_MS);
 

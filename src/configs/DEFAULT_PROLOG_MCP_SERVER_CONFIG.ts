@@ -20,9 +20,4 @@ export const DEFAULT_PROLOG_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
 	healthCheckInterval: 30000,
 	url: "http://localhost",
 	version: "1.0.0",
-	metadata: {
-		binding: "swipl-stdio",
-		multiEngine: true,
-		templates: ["state-machine", "iot-app", "simu"]
-	}
 };
