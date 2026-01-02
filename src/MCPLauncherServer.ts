@@ -14,6 +14,7 @@ import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_STATE
 import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_XPLUS1_MCP_SERVER_CONFIG";
 import { DEFAULT_LAUNCHER_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_LAUNCHER_MCP_SERVER_CONFIG";
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
+import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_PROLOG_MCP_SERVER_CONFIG";
 import { l } from "./Logger";
 import { AppConfig, DEFAULT_APP_CONFIG, getConfigOrDefault } from "@/configs/app.config";
 
@@ -30,6 +31,7 @@ export const CONFIGS_BASE_MCP_SERVER = {
     "xplus1-mcp-machine": DEFAULT_XPLUS1_MCP_SERVER_CONFIG,
     "wiki-mcp-browser": DEFAULT_WIKI_MCP_SERVER_CONFIG,
     "devops-mcp-server": DEFAULT_DEVOPS_MCP_SERVER_CONFIG,
+    "prolog-mcp-server": DEFAULT_PROLOG_MCP_SERVER_CONFIG,
 };
 
 /**
