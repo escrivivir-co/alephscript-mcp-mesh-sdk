@@ -687,7 +687,6 @@ export class XPlus1ControlPlugin
             "simulator-status",
             "xplus1://simulator/status",
             {
-                name: "UserSimulator Status",
                 description: "Current UserSimulator status and configuration",
                 mimeType: "application/json",
             },

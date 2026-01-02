@@ -490,9 +490,12 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
 
             // Convert messages to string
             return result.messages
-                .map((msg) =>
-                    "content" in msg ? msg.content.text : JSON.stringify(msg)
-                )
+                .map((msg) => {
+                    if ("content" in msg && msg.content && typeof msg.content === "object" && "text" in msg.content) {
+                        return (msg.content as { text: string }).text;
+                    }
+                    return JSON.stringify(msg);
+                })
                 .join("\n");
         } catch (error) {
             l.e(`MCPClientDriver: Prompt retrieval failed:`, {

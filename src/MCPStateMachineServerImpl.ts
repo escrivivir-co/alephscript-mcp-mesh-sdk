@@ -1217,7 +1217,6 @@ export class MCPStateMachineServer extends BaseMCPServer {
             "stategraph:x-plus-1-game",
             "stategraph:x-plus-1-game",
             {
-                name: "X+1 Game StateGraph (Scheme)",
                 description:
                     "StateGraph served via standard stategraph:<id> scheme",
                 mimeType: "application/json",
@@ -1250,7 +1249,6 @@ export class MCPStateMachineServer extends BaseMCPServer {
             "current-state",
             "xplus1://state/current",
             {
-                name: "Current State",
                 description: "Current state of the X+1 inductive pattern",
                 mimeType: "application/json",
             },
@@ -1272,7 +1270,6 @@ export class MCPStateMachineServer extends BaseMCPServer {
             "pattern-rules",
             "xplus1://rules/pattern",
             {
-                name: "Pattern Rules",
                 description: "Rules and logic for the X+1 inductive pattern",
                 mimeType: "text/markdown",
             },
@@ -1321,7 +1318,6 @@ Reset Count: ${this.state.resetCount}
             "stategraphs/x-plus-1-game",
             "xplus1://stategraphs/x-plus-1-game",
             {
-                name: "X+1 Game StateGraph",
                 description:
                     "Complete state machine definition for the X+1 inductive pattern game",
                 mimeType: "application/json",
@@ -1599,7 +1595,6 @@ Reset Count: ${this.state.resetCount}
             "game-events",
             "xplus1://events/stream",
             {
-                name: "Game Events Stream",
                 description:
                     "Stream of real-time game events for remote monitoring",
                 mimeType: "application/json",
@@ -1631,7 +1626,6 @@ Reset Count: ${this.state.resetCount}
             "conversation-updates",
             "xplus1://conversation/current",
             {
-                name: "Conversation Updates",
                 description: "Updates to the current conversation thread",
                 mimeType: "application/json",
             },
@@ -1665,7 +1659,6 @@ Reset Count: ${this.state.resetCount}
             "postulation-events",
             "xplus1://postulations/current",
             {
-                name: "Postulation Events",
                 description:
                     "Current available agent postulations for selection",
                 mimeType: "application/json",
@@ -1701,7 +1694,6 @@ Reset Count: ${this.state.resetCount}
             "command-queue-status",
             "xplus1://commands/queue",
             {
-                name: "Command Queue Status",
                 description: "Status of pending remote commands",
                 mimeType: "application/json",
             },

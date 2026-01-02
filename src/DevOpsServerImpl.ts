@@ -486,7 +486,6 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             "live-game-state",
             "devops://game/state/live",
             {
-                name: "Estado del Juego en Tiempo Real",
                 description:
                     "Estado actual del juego X+1 consultado dinámicamente via MCP",
                 mimeType: "application/json",
@@ -534,7 +533,6 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             "runtime-stats",
             "devops://runtime/statistics",
             {
-                name: "Estadísticas del Runtime",
                 description: "Estadísticas detalladas del runtime del juego",
                 mimeType: "application/json",
             },
@@ -580,7 +578,6 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             "mcp-servers-health",
             "devops://mcp/health",
             {
-                name: "Estado de Servidores MCP",
                 description: "Estado de salud de todos los servidores MCP",
                 mimeType: "application/json",
             },
@@ -626,7 +623,6 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             "agents-status",
             "devops://game/agents",
             {
-                name: "Estado de los Agentes",
                 description: "Estado actual de todos los agentes del juego",
                 mimeType: "application/json",
             },

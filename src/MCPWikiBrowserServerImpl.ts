@@ -1113,7 +1113,6 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
             "browsing-session",
             "wiki://session/current",
             {
-                name: "Current Browsing Session",
                 description:
                     "Information about the current Wikipedia browsing session",
                 mimeType: "application/json",
@@ -1166,7 +1165,6 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
             "wikipedia-status",
             "wiki://api/status",
             {
-                name: "Wikipedia API Status",
                 description:
                     "Current status and capabilities of the Wikipedia API connection",
                 mimeType: "application/json",
@@ -1191,7 +1189,6 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
             "cache-statistics",
             "wiki://cache/stats",
             {
-                name: "Cache Statistics",
                 description: "Statistics about the Wikipedia content cache",
                 mimeType: "application/json",
             },

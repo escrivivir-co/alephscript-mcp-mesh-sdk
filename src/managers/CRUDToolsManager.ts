@@ -72,8 +72,8 @@ export class CRUDToolsManager {
         name: z.string().describe('Nombre del prompt'),
         description: z.string().describe('Descripción del prompt'),
         content: z.string().describe('Contenido del prompt'),
-        parameters: z.record(z.any()).optional().describe('Parámetros del prompt'),
-        metadata: z.record(z.any()).optional().describe('Metadatos adicionales')
+        parameters: z.record(z.string(), z.any()).optional().describe('Parámetros del prompt'),
+        metadata: z.record(z.string(), z.any()).optional().describe('Metadatos adicionales')
       },
       async ({ id, name, description, content, parameters, metadata }) => {
         const prompt: PromptDefinition = {
@@ -112,8 +112,8 @@ export class CRUDToolsManager {
         name: z.string().optional().describe('Nuevo nombre'),
         description: z.string().optional().describe('Nueva descripción'),
         content: z.string().optional().describe('Nuevo contenido'),
-        parameters: z.record(z.any()).optional().describe('Nuevos parámetros'),
-        metadata: z.record(z.any()).optional().describe('Nuevos metadatos')
+        parameters: z.record(z.string(), z.any()).optional().describe('Nuevos parámetros'),
+        metadata: z.record(z.string(), z.any()).optional().describe('Nuevos metadatos')
       },
       async ({ id, name, description, content, parameters, metadata }) => {
         const updatedPrompt = this.contentManager.updatePrompt(id, {
@@ -233,7 +233,7 @@ export class CRUDToolsManager {
         uri: z.string().describe('URI del recurso'),
         mimeType: z.string().describe('Tipo MIME del recurso'),
         content: z.string().describe('Contenido del recurso'),
-        metadata: z.record(z.any()).optional().describe('Metadatos adicionales')
+        metadata: z.record(z.string(), z.any()).optional().describe('Metadatos adicionales')
       },
       async ({ id, name, description, uri, mimeType, content, metadata }) => {
         const resource: ResourceDefinition = {
@@ -274,7 +274,7 @@ export class CRUDToolsManager {
         name: z.string().optional().describe('Nuevo nombre'),
         description: z.string().optional().describe('Nueva descripción'),
         content: z.string().optional().describe('Nuevo contenido'),
-        metadata: z.record(z.any()).optional().describe('Nuevos metadatos')
+        metadata: z.record(z.string(), z.any()).optional().describe('Nuevos metadatos')
       },
       async ({ id, name, description, content, metadata }) => {
         const updatedResource = this.contentManager.updateResource(id, {

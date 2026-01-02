@@ -167,7 +167,6 @@ export class ContentManager {
       resource.id,
       resource.uri,
       {
-        name: resource.name,
         description: resource.description,
         mimeType: resource.mimeType
       },
