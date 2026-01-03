@@ -28,7 +28,8 @@ export class MCPPrologServer extends BaseMCPServer {
 	protected setupServerSpecifics(): void {
 		this.setupTools();
 		this.setupResources();
-		l.info("MCPPrologServer tools and resources registered");
+		this.setupPrompts();
+		l.info("MCPPrologServer tools, resources and prompts registered");
 	}
 
 	/**
@@ -284,6 +285,130 @@ export class MCPPrologServer extends BaseMCPServer {
 				};
 			}
 		);
+
+		// ============================================
+		// Backend-Integrated Resources (via PrologBackendClient)
+		// @épica PROLOG-PROMPTS-1.0.0
+		// ============================================
+
+		// Resource: Rules catalog from SQLite
+		this.server.resource(
+			"prolog-rules-catalog",
+			"prolog://rules/catalog",
+			{
+				description: "Catalog of persisted Prolog rules in SQLite database",
+				mimeType: "application/json",
+			},
+			async () => {
+				try {
+					if (!await this.backendClient.isHealthy()) {
+						return {
+							contents: [{
+								uri: "prolog://rules/catalog",
+								mimeType: "application/json",
+								text: JSON.stringify({ error: "Backend not available", rules: [] }, null, 2),
+							}],
+						};
+					}
+					const rules = await this.backendClient.getAllRules();
+					return {
+						contents: [{
+							uri: "prolog://rules/catalog",
+							mimeType: "application/json",
+							text: JSON.stringify({ count: rules.length, rules }, null, 2),
+						}],
+					};
+				} catch (error: any) {
+					return {
+						contents: [{
+							uri: "prolog://rules/catalog",
+							mimeType: "application/json",
+							text: JSON.stringify({ error: error.message, rules: [] }, null, 2),
+						}],
+					};
+				}
+			}
+		);
+
+		// Resource: SDK templates from backend
+		this.server.resource(
+			"prolog-sdk-templates",
+			"prolog://sdk/templates",
+			{
+				description: "SDK Prolog templates available in backend storage",
+				mimeType: "application/json",
+			},
+			async () => {
+				try {
+					if (!await this.backendClient.isHealthy()) {
+						return {
+							contents: [{
+								uri: "prolog://sdk/templates",
+								mimeType: "application/json",
+								text: JSON.stringify({ error: "Backend not available", templates: [] }, null, 2),
+							}],
+						};
+					}
+					const templates = await this.backendClient.getSdkTemplates();
+					return {
+						contents: [{
+							uri: "prolog://sdk/templates",
+							mimeType: "application/json",
+							text: JSON.stringify({ count: templates.length, templates }, null, 2),
+						}],
+					};
+				} catch (error: any) {
+					return {
+						contents: [{
+							uri: "prolog://sdk/templates",
+							mimeType: "application/json",
+							text: JSON.stringify({ error: error.message, templates: [] }, null, 2),
+						}],
+					};
+				}
+			}
+		);
+
+		// Resource: Current telemetry status
+		this.server.resource(
+			"prolog-telemetry",
+			"prolog://telemetry/current",
+			{
+				description: "Current IoT/sensor telemetry status",
+				mimeType: "application/json",
+			},
+			async () => {
+				try {
+					if (!await this.backendClient.isHealthy()) {
+						return {
+							contents: [{
+								uri: "prolog://telemetry/current",
+								mimeType: "application/json",
+								text: JSON.stringify({ error: "Backend not available", sensors: [] }, null, 2),
+							}],
+						};
+					}
+					const status = await this.backendClient.getTelemetryStatus();
+					return {
+						contents: [{
+							uri: "prolog://telemetry/current",
+							mimeType: "application/json",
+							text: JSON.stringify({ count: status.length, sensors: status }, null, 2),
+						}],
+					};
+				} catch (error: any) {
+					return {
+						contents: [{
+							uri: "prolog://telemetry/current",
+							mimeType: "application/json",
+							text: JSON.stringify({ error: error.message, sensors: [] }, null, 2),
+						}],
+					};
+				}
+			}
+		);
+
+		l.info("MCPPrologServer resources registered: 6 resources");
 	}
 
 	/**
@@ -649,6 +774,337 @@ export class MCPPrologServer extends BaseMCPServer {
 	async shutdown(): Promise<void> {
 		await this.sessionManager.shutdown();
 		await super.shutdown();
+	}
+
+	// ============================================
+	// MCP Prompts
+	// @épica PROLOG-PROMPTS-1.0.0
+	// ============================================
+
+	/**
+	 * Setup MCP Prompts for guided Prolog workflows
+	 */
+	private setupPrompts(): void {
+		// Prompt: Session Lifecycle
+		this.server.prompt(
+			"session_lifecycle",
+			"Manage Prolog session lifecycle (create, list, destroy)",
+			{
+				action: z.enum(["create", "list", "destroy"]).describe("Action to perform"),
+				sessionId: z.string().optional().describe("Session ID (for create/destroy)"),
+				obraId: z.string().optional().describe("Teatro obra ID (for create)"),
+			},
+			async ({ action, sessionId, obraId }) => {
+				let instructions = "";
+				switch (action) {
+					case "create":
+						instructions = `Para crear una nueva sesión Prolog:
+1. Usa la tool \`prolog_create_session\` con:
+   - sessionId: "${sessionId || '<id-único>'}"
+   - obraId: "${obraId || '<id-obra-teatro>'}"
+2. La sesión quedará activa para ejecutar queries.
+3. Recuerda destruir la sesión cuando termines.`;
+						break;
+					case "list":
+						instructions = `Para listar sesiones activas:
+1. Usa la tool \`prolog_list_sessions\` sin parámetros.
+2. Recibirás un array con todas las sesiones activas y su metadata.`;
+						break;
+					case "destroy":
+						instructions = `Para destruir una sesión Prolog:
+1. Usa la tool \`prolog_destroy_session\` con:
+   - sessionId: "${sessionId || '<id-sesión>'}"
+2. Todos los hechos y reglas de la sesión serán liberados.`;
+						break;
+				}
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Load Knowledge Base
+		this.server.prompt(
+			"load_knowledge_base",
+			"Load Prolog knowledge from file or database",
+			{
+				source: z.enum(["file", "database"]).describe("Source of knowledge"),
+				sessionId: z.string().describe("Target session ID"),
+				path: z.string().optional().describe("File path (for file source)"),
+				app: z.string().optional().describe("App filter (for database source)"),
+			},
+			async ({ source, sessionId, path, app }) => {
+				let instructions = "";
+				if (source === "file") {
+					instructions = `Para cargar conocimiento desde archivo:
+1. Usa la tool \`prolog_consult_file\` con:
+   - sessionId: "${sessionId}"
+   - filePath: "${path || '<ruta/archivo.pl>'}"
+2. Las reglas y hechos del archivo se añadirán a la KB de la sesión.`;
+				} else {
+					instructions = `Para cargar reglas desde la base de datos SQLite:
+1. Usa la tool \`prolog_load_rules_from_db\` con:
+   - sessionId: "${sessionId}"
+   ${app ? `- app: "${app}" (filtro por aplicación)` : '- app: (opcional, sin filtro)'}
+2. Las reglas persistidas se cargarán en la KB de la sesión.`;
+				}
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Interactive Query
+		this.server.prompt(
+			"interactive_query",
+			"Execute interactive Prolog queries with session context",
+			{
+				sessionId: z.string().describe("Active session ID"),
+				queryType: z.enum(["simple", "findall", "aggregate"]).optional().describe("Type of query"),
+			},
+			async ({ sessionId, queryType }) => {
+				const examples = {
+					simple: "?- member(X, [1,2,3]).",
+					findall: "?- findall(X, predicate(X), Results).",
+					aggregate: "?- aggregate_all(count, predicate(_), Count).",
+				};
+				const example = examples[queryType || "simple"];
+				const instructions = `Para ejecutar consultas Prolog interactivas:
+
+**Sesión activa**: ${sessionId}
+
+1. Usa la tool \`prolog_query\` con:
+   - sessionId: "${sessionId}"
+   - query: "<tu consulta Prolog>"
+
+**Ejemplo (${queryType || "simple"})**:
+\`\`\`prolog
+${example}
+\`\`\`
+
+**Tips**:
+- Termina queries con punto (.)
+- Usa variables en mayúsculas (X, Y, Result)
+- Para múltiples resultados usa findall/3`;
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Persist Rule
+		this.server.prompt(
+			"persist_rule",
+			"Save Prolog rules to session or database",
+			{
+				target: z.enum(["session", "database"]).describe("Where to persist"),
+				sessionId: z.string().optional().describe("Session ID (for session target)"),
+				ruleName: z.string().optional().describe("Rule name (for database)"),
+			},
+			async ({ target, sessionId, ruleName }) => {
+				let instructions = "";
+				if (target === "session") {
+					instructions = `Para añadir hechos/reglas a la sesión activa:
+1. Usa la tool \`prolog_assert_fact\` con:
+   - sessionId: "${sessionId || '<id-sesión>'}"
+   - fact: "<hecho o regla Prolog>"
+
+**Ejemplos**:
+- Hecho: \`likes(mary, wine)\`
+- Regla: \`ancestor(X,Y) :- parent(X,Y)\`
+
+Los hechos persisten solo durante la sesión.`;
+				} else {
+					instructions = `Para persistir reglas en SQLite (permanente):
+1. Usa la tool \`prolog_save_rule_to_db\` con:
+   - name: "${ruleName || '<nombre-regla>'}"
+   - content: "<contenido Prolog>"
+   - app: (opcional, para categorizar)
+
+La regla quedará guardada y podrá cargarse en futuras sesiones.`;
+				}
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Use SDK Template
+		this.server.prompt(
+			"use_sdk_template",
+			"Browse and apply SDK Prolog templates",
+			{
+				action: z.enum(["list", "get"]).describe("Action to perform"),
+				templateName: z.string().optional().describe("Template name (for get action)"),
+			},
+			async ({ action, templateName }) => {
+				let instructions = "";
+				if (action === "list") {
+					instructions = `Para listar templates SDK disponibles:
+1. Usa la tool \`prolog_list_sdk_templates\` sin parámetros.
+2. Recibirás un catálogo de templates predefinidos.
+
+Los templates incluyen patrones comunes para:
+- Agentes Teatro
+- Sistemas SBR (Sensor-Based Reasoning)
+- Validación doctrinal`;
+				} else {
+					instructions = `Para obtener el contenido de un template:
+1. Usa la tool \`prolog_get_sdk_template_content\` con:
+   - templateName: "${templateName || '<nombre-template>'}"
+2. Recibirás el código Prolog del template.
+3. Puedes cargarlo en una sesión con \`prolog_consult_file\` o adaptarlo.`;
+				}
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Telemetry Check
+		this.server.prompt(
+			"telemetry_check",
+			"Check IoT/sensor telemetry status",
+			{},
+			async () => {
+				const instructions = `Para verificar el estado de telemetría IoT:
+1. Usa la tool \`prolog_get_telemetry_status\` sin parámetros.
+2. Recibirás el estado actual de sensores y telemetría.
+
+**Integración SBR**:
+Los datos de telemetría pueden usarse como hechos en consultas Prolog:
+\`\`\`prolog
+?- sensor(temperatura, T), T > 25.
+\`\`\``;
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Razonamiento SBR
+		this.server.prompt(
+			"razonamiento_sbr",
+			"Execute Sensor-Based Reasoning with Prolog",
+			{
+				sessionId: z.string().describe("Active session with SBR rules"),
+				objetivo: z.string().describe("Reasoning objective"),
+			},
+			async ({ sessionId, objetivo }) => {
+				const instructions = `Para ejecutar razonamiento basado en sensores (SBR):
+
+**Sesión**: ${sessionId}
+**Objetivo**: ${objetivo}
+
+**Workflow**:
+1. Verifica telemetría: \`prolog_get_telemetry_status\`
+2. Carga reglas SBR si no están: \`prolog_load_rules_from_db\` con app="sbr"
+3. Ejecuta inferencia: \`prolog_query\` con:
+   \`\`\`prolog
+   ?- inferir_${objetivo.toLowerCase().replace(/\s+/g, '_')}(Resultado).
+   \`\`\`
+
+**Ejemplo típico SBR**:
+\`\`\`prolog
+% Regla: alertar si temperatura alta
+alerta(temperatura_alta) :- 
+    sensor(temperatura, T), 
+    T > umbral_temperatura.
+\`\`\``;
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		// Prompt: Teatro Agent Session (E2E)
+		this.server.prompt(
+			"teatro_agent_session",
+			"Complete E2E workflow for Teatro agent with Prolog reasoning",
+			{
+				obraId: z.string().describe("Teatro obra ID"),
+				agentName: z.string().describe("Agent name (e.g., 'lucas')"),
+			},
+			async ({ obraId, agentName }) => {
+				const sessionId = `${agentName}-${obraId}`;
+				const instructions = `# Workflow E2E: Agente Teatro con Razonamiento Prolog
+
+**Obra**: ${obraId}
+**Agente**: ${agentName}
+**Sesión**: ${sessionId}
+
+## Paso 1: Crear Sesión
+\`\`\`
+prolog_create_session({
+  sessionId: "${sessionId}",
+  obraId: "${obraId}"
+})
+\`\`\`
+
+## Paso 2: Cargar Base de Conocimiento
+\`\`\`
+prolog_consult_file({
+  sessionId: "${sessionId}",
+  filePath: "ARCHIVO/PLUGINS/PROLOG_EDITOR/templates/${agentName}.brain.pl"
+})
+\`\`\`
+
+## Paso 3: Cargar Reglas de BD (opcional)
+\`\`\`
+prolog_load_rules_from_db({
+  sessionId: "${sessionId}",
+  app: "${obraId}"
+})
+\`\`\`
+
+## Paso 4: Ejecutar Razonamiento
+\`\`\`
+prolog_query({
+  sessionId: "${sessionId}",
+  query: "decidir_accion(${agentName}, Accion)."
+})
+\`\`\`
+
+## Paso 5: Cleanup
+\`\`\`
+prolog_destroy_session({
+  sessionId: "${sessionId}"
+})
+\`\`\`
+
+---
+Este workflow implementa un agente Teatro con capacidad de razonamiento lógico.`;
+				return {
+					messages: [{
+						role: "assistant",
+						content: { type: "text", text: instructions },
+					}],
+				};
+			}
+		);
+
+		l.info("MCPPrologServer prompts registered: 8 prompts");
 	}
 }
 
