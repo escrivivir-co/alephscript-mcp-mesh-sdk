@@ -22,6 +22,8 @@ import type {
   TelemetryStatus,
 } from '@alephscript/mcp-core-sdk/types/prolog';
 
+import { l } from '../Logger';
+
 export interface PrologBackendClientConfig {
   baseUrl: string;
   timeout?: number;
@@ -38,6 +40,7 @@ export class PrologBackendClient {
   constructor(config: PrologBackendClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.timeout = config.timeout || 10000;
+    l.i('[PrologBackendClient] Initialized', { baseUrl: this.baseUrl, timeout: this.timeout });
   }
 
   // ============================================
@@ -120,10 +123,18 @@ export class PrologBackendClient {
    * Check if backend is available
    */
   async isHealthy(): Promise<boolean> {
+    const url = `${this.baseUrl}/rules`;
+    l.d('[PrologBackendClient] isHealthy() checking...', { url });
     try {
       await this.fetch<unknown>('/rules', { method: 'HEAD' });
+      l.i('[PrologBackendClient] isHealthy() = TRUE');
       return true;
-    } catch {
+    } catch (error: any) {
+      l.e('[PrologBackendClient] isHealthy() = FALSE', { 
+        error: error.message,
+        url,
+        statusCode: error.statusCode || 'N/A'
+      });
       return false;
     }
   }
@@ -134,6 +145,9 @@ export class PrologBackendClient {
 
   private async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
+    const method = options.method || 'GET';
+    
+    l.d('[PrologBackendClient] fetch()', { method, url });
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -150,6 +164,12 @@ export class PrologBackendClient {
       });
 
       clearTimeout(timeoutId);
+      
+      l.d('[PrologBackendClient] fetch() response', { 
+        status: response.status, 
+        ok: response.ok,
+        url 
+      });
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({ error: 'Unknown error' })) as ApiError;
@@ -165,15 +185,29 @@ export class PrologBackendClient {
         return undefined as T;
       }
 
+      // Handle HEAD requests (no body)
+      if (method === 'HEAD') {
+        l.d('[PrologBackendClient] HEAD request successful, no body to parse');
+        return undefined as T;
+      }
+
       return await response.json() as T;
     } catch (error) {
       clearTimeout(timeoutId);
+      
+      l.e('[PrologBackendClient] fetch() CAUGHT ERROR', {
+        errorName: (error as Error).name,
+        errorMessage: (error as Error).message,
+        url,
+        method
+      });
       
       if (error instanceof PrologBackendError) {
         throw error;
       }
 
       if ((error as Error).name === 'AbortError') {
+        l.e('[PrologBackendClient] Request TIMEOUT after', { timeout: this.timeout });
         throw new PrologBackendError(408, 'Request timeout', url);
       }
 

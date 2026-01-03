@@ -21,6 +21,14 @@ export class MCPPrologServer extends BaseMCPServer {
 	constructor() {
 		super(DEFAULT_PROLOG_MCP_SERVER_CONFIG);
 		this.sessionManager = new PrologSessionManager();
+		
+		// Log environment variable for debugging
+		const backendUrl = process.env.PROLOG_BACKEND_URL || 'http://localhost:8000/api';
+		l.info("MCPPrologServer: Creating PrologBackendClient", { 
+			PROLOG_BACKEND_URL: process.env.PROLOG_BACKEND_URL || '(not set, using default)',
+			effectiveUrl: backendUrl 
+		});
+		
 		this.backendClient = createPrologBackendClient();
 		l.info("MCPPrologServer initialized with session management and backend client");
 	}
@@ -479,9 +487,8 @@ export class MCPPrologServer extends BaseMCPServer {
 		}
 
 		try {
-			// Assert fact using engine.call
-			const assertCommand = `assert(${fact}).`;
-			await session.engine.engine.call(assertCommand);
+			// Use PrologEngine.assertFact wrapper (T009 fix: avoid direct engine.engine access)
+			await session.engine.assertFact(fact);
 			
 			return {
 				success: true,
@@ -490,10 +497,14 @@ export class MCPPrologServer extends BaseMCPServer {
 			};
 		} catch (error: any) {
 			l.e(`Error asserting fact: ${fact}`, error);
+			
+			// Enhanced error handling (T009: check engine health after error)
+			const errorMessage = error?.message || String(error);
 			return {
 				success: false,
 				fact,
-				error: error.message,
+				error: errorMessage,
+				engineHealthy: !!session.engine?.engine,
 			};
 		}
 	}
@@ -609,27 +620,55 @@ export class MCPPrologServer extends BaseMCPServer {
 	// ============================================
 
 	/**
+	 * Helper: Create verbose error response with diagnostic info
+	 */
+	private createBackendErrorResponse(toolName: string, phase: string, error?: any): any {
+		const backendUrl = process.env.PROLOG_BACKEND_URL || 'http://localhost:8000/api';
+		const diagnostic = {
+			success: false,
+			error: phase === 'health_check' 
+				? "Backend not available" 
+				: (error?.message || "Unknown error"),
+			_diagnostic: {
+				tool: toolName,
+				phase,
+				backendUrl,
+				timestamp: new Date().toISOString(),
+				hint: phase === 'health_check'
+					? "Verify Backend is running: curl http://localhost:8000/health"
+					: undefined,
+				errorDetails: error ? {
+					name: error.name,
+					message: error.message,
+					statusCode: error.statusCode,
+				} : undefined,
+			}
+		};
+		l.e(`[MCPPrologServer] ${toolName} failed at phase: ${phase}`, diagnostic._diagnostic);
+		return diagnostic;
+	}
+
+	/**
 	 * Load rules from SQLite and assert them into session KB
 	 */
 	async handleLoadRulesFromDb(sessionId: string, app?: string): Promise<any> {
+		const toolName = 'prolog_load_rules_from_db';
+		l.d(`[MCPPrologServer] ${toolName} called`, { sessionId, app });
+		
 		const session = this.sessionManager.getSession(sessionId);
 		if (!session) {
-			return {
-				success: false,
-				error: `Session ${sessionId} not found`,
-			};
+			return this.createBackendErrorResponse(toolName, 'session_lookup', 
+				{ message: `Session ${sessionId} not found`, name: 'SessionNotFound' });
 		}
 
 		try {
 			// Check backend availability
 			if (!await this.backendClient.isHealthy()) {
-				return {
-					success: false,
-					error: "Backend not available",
-				};
+				return this.createBackendErrorResponse(toolName, 'health_check');
 			}
 
 			// Fetch rules from backend
+			l.d(`[MCPPrologServer] ${toolName} fetching rules...`, { app: app || 'all' });
 			const rules = app 
 				? await this.backendClient.getRulesByApp(app)
 				: await this.backendClient.getAllRules();
@@ -641,7 +680,7 @@ export class MCPPrologServer extends BaseMCPServer {
 					await session.engine.engine.call(`assertz((${rule.content}))`);
 					loadedCount++;
 				} catch (assertError: any) {
-					l.warn(`Failed to assert rule ${rule.name}: ${assertError.message}`);
+					l.w(`Failed to assert rule ${rule.name}: ${assertError.message}`);
 				}
 			}
 
@@ -654,10 +693,7 @@ export class MCPPrologServer extends BaseMCPServer {
 				message: `Loaded ${loadedCount} of ${rules.length} rules into KB`,
 			};
 		} catch (error: any) {
-			return {
-				success: false,
-				error: error.message,
-			};
+			return this.createBackendErrorResponse(toolName, 'fetch_rules', error);
 		}
 	}
 
@@ -665,12 +701,12 @@ export class MCPPrologServer extends BaseMCPServer {
 	 * Save a rule to SQLite database
 	 */
 	async handleSaveRuleToDb(name: string, content: string, app?: string): Promise<any> {
+		const toolName = 'prolog_save_rule_to_db';
+		l.d(`[MCPPrologServer] ${toolName} called`, { name, app });
+		
 		try {
 			if (!await this.backendClient.isHealthy()) {
-				return {
-					success: false,
-					error: "Backend not available",
-				};
+				return this.createBackendErrorResponse(toolName, 'health_check');
 			}
 
 			const result = await this.backendClient.createRule({
@@ -686,10 +722,7 @@ export class MCPPrologServer extends BaseMCPServer {
 				message: result.text || "Rule saved successfully",
 			};
 		} catch (error: any) {
-			return {
-				success: false,
-				error: error.message,
-			};
+			return this.createBackendErrorResponse(toolName, 'save_rule', error);
 		}
 	}
 
@@ -697,25 +730,23 @@ export class MCPPrologServer extends BaseMCPServer {
 	 * List SDK templates from backend
 	 */
 	async handleListSdkTemplates(): Promise<any> {
+		const toolName = 'prolog_list_sdk_templates';
+		l.d(`[MCPPrologServer] ${toolName} called`);
+		
 		try {
 			if (!await this.backendClient.isHealthy()) {
-				return {
-					success: false,
-					error: "Backend not available",
-				};
+				return this.createBackendErrorResponse(toolName, 'health_check');
 			}
 
 			const templates = await this.backendClient.getSdkTemplates();
+			l.d(`[MCPPrologServer] ${toolName} fetched`, { count: templates.length });
 			return {
 				success: true,
 				count: templates.length,
 				templates,
 			};
 		} catch (error: any) {
-			return {
-				success: false,
-				error: error.message,
-			};
+			return this.createBackendErrorResponse(toolName, 'fetch_templates', error);
 		}
 	}
 
@@ -723,25 +754,23 @@ export class MCPPrologServer extends BaseMCPServer {
 	 * Get SDK template content
 	 */
 	async handleGetSdkTemplateContent(templateName: string): Promise<any> {
+		const toolName = 'prolog_get_sdk_template_content';
+		l.d(`[MCPPrologServer] ${toolName} called`, { templateName });
+		
 		try {
 			if (!await this.backendClient.isHealthy()) {
-				return {
-					success: false,
-					error: "Backend not available",
-				};
+				return this.createBackendErrorResponse(toolName, 'health_check');
 			}
 
 			const result = await this.backendClient.getTemplateContent(templateName);
+			l.d(`[MCPPrologServer] ${toolName} fetched content for`, { templateName });
 			return {
 				success: true,
 				templateName,
 				content: result.content,
 			};
 		} catch (error: any) {
-			return {
-				success: false,
-				error: error.message,
-			};
+			return this.createBackendErrorResponse(toolName, 'fetch_content', error);
 		}
 	}
 
@@ -749,25 +778,27 @@ export class MCPPrologServer extends BaseMCPServer {
 	 * Get telemetry status
 	 */
 	async handleGetTelemetryStatus(): Promise<any> {
+		const toolName = 'prolog_get_telemetry_status';
+		l.d(`[MCPPrologServer] ${toolName} called`);
 		try {
-			if (!await this.backendClient.isHealthy()) {
-				return {
-					success: false,
-					error: "Backend not available",
-				};
+			l.d("[MCPPrologServer] Checking backendClient.isHealthy()...");
+			const healthy = await this.backendClient.isHealthy();
+			l.d("[MCPPrologServer] backendClient.isHealthy() =", { healthy });
+			
+			if (!healthy) {
+				return this.createBackendErrorResponse(toolName, 'health_check');
 			}
 
+			l.d("[MCPPrologServer] Calling backendClient.getTelemetryStatus()...");
 			const status = await this.backendClient.getTelemetryStatus();
+			l.d("[MCPPrologServer] getTelemetryStatus() returned", { count: status.length });
 			return {
 				success: true,
 				count: status.length,
 				sensors: status,
 			};
 		} catch (error: any) {
-			return {
-				success: false,
-				error: error.message,
-			};
+			return this.createBackendErrorResponse(toolName, 'fetch_telemetry', error);
 		}
 	}
 
@@ -1110,6 +1141,17 @@ Este workflow implementa un agente Teatro con capacidad de razonamiento lógico.
 
 // Entry point when run directly
 if (require.main === module) {
+	// T009/T010 fix: Global error handlers to prevent crash on swipl-stdio errors
+	process.on('uncaughtException', (error) => {
+		l.e('Uncaught exception in MCPPrologServer', { error: error.message, stack: error.stack });
+		// Don't exit - let the server continue running
+	});
+	
+	process.on('unhandledRejection', (reason, promise) => {
+		l.e('Unhandled rejection in MCPPrologServer', { reason: String(reason) });
+		// Don't exit - let the server continue running
+	});
+
 	const server = new MCPPrologServer();
 	server.start();
 }
