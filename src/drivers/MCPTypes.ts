@@ -1,7 +1,28 @@
 /**
  * State Machine MCP Driver - MCP Types
  * Defines types and interfaces for MCP protocol communication
+ * 
+ * Re-exports common types from @alephscript/mcp-core-sdk/types/mcp
+ * and adds mesh-specific extensions.
  */
+
+// Re-export common MCP types from core SDK
+export {
+    MCPToolRequest,
+    MCPToolResponse,
+    MCPResourceRequest,
+    MCPResourceResponse,
+    MCPPromptRequest,
+    MCPPromptResponse,
+    MCPHealthResponse,
+    MCPStats,
+    MCPEventType,
+    MCPErrorType,
+    MCPError,
+    MCPClientConfig,
+    MCP_DEFAULTS,
+    type MCPDefaultsType,
+} from '@alephscript/mcp-core-sdk/types/mcp';
 
 import { AppConfig } from "@/configs/app.config";
 
@@ -19,6 +40,7 @@ const DEFAULT_MCP_SERVER_CONFIG = [
 
 /**
  * Configuration for an MCP server connection
+ * Extended version with mesh-specific fields
  */
 export interface MCPServerConfig {
     /** Server port */
@@ -59,7 +81,7 @@ export interface MCPServerConfig {
 }
 
 /**
- * Server capabilities returned by an MCP server
+ * Server capabilities returned by an MCP server (extended with string arrays)
  */
 export interface MCPServerCapabilities {
     /** Available tools on this server */
@@ -74,177 +96,16 @@ export interface MCPServerCapabilities {
     metadata?: Record<string, any>;
 }
 
-/**
- * Request to execute a tool on an MCP server
- */
-export interface MCPToolRequest {
-    /** Name of the tool to execute */
-    toolName: string;
-    /** Parameters to pass to the tool */
-    params: Record<string, any>;
-    /** Optional timeout for this specific request */
-    timeout?: number;
-}
+// ============================================
+// Legacy Aliases (for backwards compatibility)
+// ============================================
 
 /**
- * Response from executing a tool
+ * @deprecated Use MCPErrorType from core SDK instead
  */
-export interface MCPToolResponse {
-    /** Whether the tool execution was successful */
-    success: boolean;
-    /** Result data from the tool */
-    result?: any;
-    /** Error message if execution failed */
-    error?: string;
-    /** Additional metadata about the execution */
-    metadata?: Record<string, any>;
-    /** Execution time in milliseconds */
-    executionTime?: number;
-}
+export { MCPErrorType as eType } from '@alephscript/mcp-core-sdk/types/mcp';
 
 /**
- * Request to get a resource from an MCP server
+ * @deprecated Use MCPError from core SDK instead
  */
-export interface MCPResourceRequest {
-    /** ID of the resource to retrieve */
-    resourceId: string;
-    /** Optional parameters for resource retrieval */
-    params?: Record<string, any>;
-}
-
-/**
- * Response containing a resource
- */
-export interface MCPResourceResponse {
-    /** Whether the resource retrieval was successful */
-    success: boolean;
-    /** The resource data */
-    data?: any;
-    /** Content type of the resource */
-    contentType?: string;
-    /** Error message if retrieval failed */
-    error?: string;
-    /** Resource metadata */
-    metadata?: Record<string, any>;
-}
-
-/**
- * Request to get a prompt from an MCP server
- */
-export interface MCPPromptRequest {
-    /** ID of the prompt to retrieve */
-    promptId: string;
-    /** Variables to interpolate into the prompt */
-    variables?: Record<string, any>;
-}
-
-/**
- * Response containing a prompt
- */
-export interface MCPPromptResponse {
-    /** Whether the prompt retrieval was successful */
-    success: boolean;
-    /** The generated prompt text */
-    prompt?: string;
-    /** Error message if retrieval failed */
-    error?: string;
-    /** Prompt metadata */
-    metadata?: Record<string, any>;
-}
-
-/**
- * Health check response from an MCP server
- */
-export interface MCPHealthResponse {
-    /** Whether the server is healthy */
-    healthy: boolean;
-    /** Server status message */
-    status: string;
-    /** Server uptime in milliseconds */
-    uptime?: number;
-    /** Additional health metrics */
-    metrics?: Record<string, any>;
-}
-
-/**
- * Configuration for MCP client behavior
- */
-export interface MCPClientConfig {
-    /** Default timeout for requests in milliseconds */
-    defaultTimeout: number;
-    /** Default number of retry attempts */
-    defaultRetries: number;
-    /** Connection pool size */
-    poolSize: number;
-    /** Enable request/response logging */
-    enableLogging: boolean;
-}
-
-/**
- * Statistics about MCP operations
- */
-export interface MCPStats {
-    /** Total number of requests made */
-    totalRequests: number;
-    /** Number of successful requests */
-    successfulRequests: number;
-    /** Number of failed requests */
-    failedRequests: number;
-    /** Average response time in milliseconds */
-    averageResponseTime: number;
-    /** Number of active connections */
-    activeConnections: number;
-    /** Requests per server */
-    requestsByServer: Record<string, number>;
-}
-
-/**
- * Event types emitted by MCP operations
- */
-export enum MCPEventType {
-    SERVER_CONNECTED = "server_connected",
-    SERVER_DISCONNECTED = "server_disconnected",
-    SERVER_ERROR = "server_error",
-    TOOL_EXECUTED = "tool_executed",
-    RESOURCE_RETRIEVED = "resource_retrieved",
-    PROMPT_RETRIEVED = "prompt_retrieved",
-    HEALTH_CHECK = "health_check",
-}
-
-/**
- * Error types that can occur in MCP operations
- */
-export enum eType {
-    CONNECTION_ERROR = "connection_error",
-    TIMEOUT_ERROR = "timeout_error",
-    AUTHENTICATION_ERROR = "authentication_error",
-    VALIDATION_ERROR = "validation_error",
-    SERVER_ERROR = "server_error",
-    NOT_FOUND_ERROR = "not_found_error",
-    RATE_LIMIT_ERROR = "rate_limit_error",
-}
-
-/**
- * Detailed error information for MCP operations
- */
-export interface e extends Error {
-    /** Type of MCP error */
-    type: eType;
-    /** Server ID where error occurred */
-    serverId?: string;
-    /** HTTP status code if applicable */
-    statusCode?: number;
-    /** Additional error details */
-    details?: Record<string, any>;
-}
-
-/**
- * Default configurations for MCP operations
- */
-export const MCP_DEFAULTS = {
-    TIMEOUT: 30000, // 30 seconds
-    MAX_RETRIES: 3,
-    POOL_SIZE: 10,
-    HEALTH_CHECK_INTERVAL: 60000, // 1 minute
-    REQUEST_TIMEOUT: 10000, // 10 seconds
-} as const;
+export { MCPError as e } from '@alephscript/mcp-core-sdk/types/mcp';
