@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.10.0",
+    "generators": {
+      "prolog-backend-client": {
+        "generatorName": "typescript-fetch",
+        "inputSpec": "specs/openapi-safe.yaml",
+        "output": "src/generated/prolog-backend-client",
+        "additionalProperties": {
+          "supportsES6": true,
+          "typescriptThreePlus": true,
+          "useSingleRequestParameter": true,
+          "withInterfaces": true,
+          "prefixParameterInterfaces": false,
+          "enumPropertyNaming": "UPPERCASE"
+        },
+        "importMappings": {
+          "Rule": "@alephscript/mcp-core-sdk/types/prolog",
+          "RuleInput": "@alephscript/mcp-core-sdk/types/prolog",
+          "RuleCreatedResponse": "@alephscript/mcp-core-sdk/types/prolog",
+          "Template": "@alephscript/mcp-core-sdk/types/prolog",
+          "TemplateContentResponse": "@alephscript/mcp-core-sdk/types/prolog",
+          "TelemetryStatus": "@alephscript/mcp-core-sdk/types/prolog"
+        },
+        "typeMappings": {
+          "Rule": "Rule",
+          "RuleInput": "RuleInput",
+          "RuleCreatedResponse": "RuleCreatedResponse",
+          "Template": "Template",
+          "TemplateContentResponse": "TemplateContentResponse",
+          "TelemetryStatus": "TelemetryStatus"
+        }
+      }
+    }
+  }
+}

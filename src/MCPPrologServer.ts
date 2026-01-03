@@ -3,21 +3,26 @@
  * Prolog MCP Server
  * Provides Prolog logic inference capabilities to MCP clients
  * with session management for Teatro multi-agent scenarios
+ * 
+ * @épica PROLOG-CLIENT-GEN-1.0.0 - Added PrologBackendClient for SQLite access
  */
 
 import { BaseMCPServer } from "./BaseMCPServer";
 import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "./configs/DEFAULT_PROLOG_MCP_SERVER_CONFIG";
 import { PrologSessionManager } from "./services/PrologSessionManager";
+import { PrologBackendClient, createPrologBackendClient } from "./clients";
 import { l } from "./Logger";
 import { z } from "zod";
 
 export class MCPPrologServer extends BaseMCPServer {
 	private sessionManager: PrologSessionManager;
+	private backendClient: PrologBackendClient;
 
 	constructor() {
 		super(DEFAULT_PROLOG_MCP_SERVER_CONFIG);
 		this.sessionManager = new PrologSessionManager();
-		l.info("MCPPrologServer initialized with session management");
+		this.backendClient = createPrologBackendClient();
+		l.info("MCPPrologServer initialized with session management and backend client");
 	}
 
 	protected setupServerSpecifics(): void {
@@ -129,6 +134,86 @@ export class MCPPrologServer extends BaseMCPServer {
 			{},
 			async () => {
 				const result = await this.handleTemplatesCatalog();
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// ============================================
+		// Backend-Integrated Tools (via PrologBackendClient)
+		// These access SQLite without creating MCP cycles
+		// @épica PROLOG-CLIENT-GEN-1.0.0
+		// ============================================
+
+		// Tool: Load rules from database into session KB
+		this.server.tool(
+			"prolog_load_rules_from_db",
+			"Load persisted rules from SQLite database into session knowledge base",
+			{
+				sessionId: z.string().describe("Target session to load rules into"),
+				app: z.string().optional().describe("Filter by app name (optional)"),
+			},
+			async ({ sessionId, app }) => {
+				const result = await this.handleLoadRulesFromDb(sessionId, app);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Save rule to database
+		this.server.tool(
+			"prolog_save_rule_to_db",
+			"Persist a Prolog rule to SQLite database",
+			{
+				name: z.string().describe("Rule name"),
+				content: z.string().describe("Prolog rule content"),
+				app: z.string().optional().describe("Application filter"),
+			},
+			async ({ name, content, app }) => {
+				const result = await this.handleSaveRuleToDb(name, content, app);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: List SDK templates from backend
+		this.server.tool(
+			"prolog_list_sdk_templates",
+			"List available SDK templates from backend storage",
+			{},
+			async () => {
+				const result = await this.handleListSdkTemplates();
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Get SDK template content
+		this.server.tool(
+			"prolog_get_sdk_template_content",
+			"Get the content of a specific SDK template",
+			{
+				templateName: z.string().describe("Template name to load"),
+			},
+			async ({ templateName }) => {
+				const result = await this.handleGetSdkTemplateContent(templateName);
+				return {
+					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+				};
+			}
+		);
+
+		// Tool: Get telemetry status
+		this.server.tool(
+			"prolog_get_telemetry_status",
+			"Get current telemetry/sensor status from backend",
+			{},
+			async () => {
+				const result = await this.handleGetTelemetryStatus();
 				return {
 					content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
 				};
@@ -391,6 +476,174 @@ export class MCPPrologServer extends BaseMCPServer {
 			],
 			message: "[FC1] Hardcoded templates. Real scan in FC2.",
 		};
+	}
+
+	// ============================================
+	// Backend-Integrated Handlers (via PrologBackendClient)
+	// @épica PROLOG-CLIENT-GEN-1.0.0
+	// ============================================
+
+	/**
+	 * Load rules from SQLite and assert them into session KB
+	 */
+	async handleLoadRulesFromDb(sessionId: string, app?: string): Promise<any> {
+		const session = this.sessionManager.getSession(sessionId);
+		if (!session) {
+			return {
+				success: false,
+				error: `Session ${sessionId} not found`,
+			};
+		}
+
+		try {
+			// Check backend availability
+			if (!await this.backendClient.isHealthy()) {
+				return {
+					success: false,
+					error: "Backend not available",
+				};
+			}
+
+			// Fetch rules from backend
+			const rules = app 
+				? await this.backendClient.getRulesByApp(app)
+				: await this.backendClient.getAllRules();
+
+			// Assert each rule into session KB
+			let loadedCount = 0;
+			for (const rule of rules) {
+				try {
+					await session.engine.engine.call(`assertz((${rule.content}))`);
+					loadedCount++;
+				} catch (assertError: any) {
+					l.warn(`Failed to assert rule ${rule.name}: ${assertError.message}`);
+				}
+			}
+
+			return {
+				success: true,
+				sessionId,
+				app: app || "all",
+				rulesFound: rules.length,
+				rulesLoaded: loadedCount,
+				message: `Loaded ${loadedCount} of ${rules.length} rules into KB`,
+			};
+		} catch (error: any) {
+			return {
+				success: false,
+				error: error.message,
+			};
+		}
+	}
+
+	/**
+	 * Save a rule to SQLite database
+	 */
+	async handleSaveRuleToDb(name: string, content: string, app?: string): Promise<any> {
+		try {
+			if (!await this.backendClient.isHealthy()) {
+				return {
+					success: false,
+					error: "Backend not available",
+				};
+			}
+
+			const result = await this.backendClient.createRule({
+				name,
+				content,
+				app,
+			});
+
+			return {
+				success: true,
+				id: result.id,
+				name,
+				message: result.text || "Rule saved successfully",
+			};
+		} catch (error: any) {
+			return {
+				success: false,
+				error: error.message,
+			};
+		}
+	}
+
+	/**
+	 * List SDK templates from backend
+	 */
+	async handleListSdkTemplates(): Promise<any> {
+		try {
+			if (!await this.backendClient.isHealthy()) {
+				return {
+					success: false,
+					error: "Backend not available",
+				};
+			}
+
+			const templates = await this.backendClient.getSdkTemplates();
+			return {
+				success: true,
+				count: templates.length,
+				templates,
+			};
+		} catch (error: any) {
+			return {
+				success: false,
+				error: error.message,
+			};
+		}
+	}
+
+	/**
+	 * Get SDK template content
+	 */
+	async handleGetSdkTemplateContent(templateName: string): Promise<any> {
+		try {
+			if (!await this.backendClient.isHealthy()) {
+				return {
+					success: false,
+					error: "Backend not available",
+				};
+			}
+
+			const result = await this.backendClient.getTemplateContent(templateName);
+			return {
+				success: true,
+				templateName,
+				content: result.content,
+			};
+		} catch (error: any) {
+			return {
+				success: false,
+				error: error.message,
+			};
+		}
+	}
+
+	/**
+	 * Get telemetry status
+	 */
+	async handleGetTelemetryStatus(): Promise<any> {
+		try {
+			if (!await this.backendClient.isHealthy()) {
+				return {
+					success: false,
+					error: "Backend not available",
+				};
+			}
+
+			const status = await this.backendClient.getTelemetryStatus();
+			return {
+				success: true,
+				count: status.length,
+				sensors: status,
+			};
+		} catch (error: any) {
+			return {
+				success: false,
+				error: error.message,
+			};
+		}
 	}
 
 	async shutdown(): Promise<void> {

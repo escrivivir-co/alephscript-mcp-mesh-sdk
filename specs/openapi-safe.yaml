@@ -1,0 +1,310 @@
+# OpenAPI Spec - Safe Endpoints for MCPPrologServer Client
+# 
+# This is a SUBSET of the full PrologEditor API (see ARCHIVO/PLUGINS/OPENASYNCAPI_EDITOR/specs/PrologEditor/openapi.yaml)
+# Contains ONLY endpoints that do NOT invoke MCP, preventing infinite cycles.
+#
+# EXCLUDED (would create MCP → Backend → MCP cycle):
+#   - POST /sessions, GET /sessions, DELETE /sessions/:id
+#   - POST /run-rule, POST /assert, POST /consult
+#   - GET /mcp-templates, POST /telemetry/process
+#
+# Épica: PROLOG-CLIENT-GEN-1.0.0
+# Fecha: 2026-01-03
+
+openapi: 3.1.0
+info:
+  title: PrologEditor Safe API (for MCPPrologServer)
+  description: |
+    Subset of PrologEditor API containing only endpoints safe for MCPPrologServer to call.
+    These endpoints access SQLite directly without invoking MCP tools.
+  version: 1.0.0
+  contact:
+    name: Aleph Scriptorium
+  license:
+    name: AIPL v1.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+tags:
+  - name: Rules
+    description: SQLite-backed rule CRUD (no MCP)
+  - name: Templates
+    description: Local SDK templates (no MCP)
+  - name: Telemetry
+    description: Telemetry status query (no MCP)
+
+paths:
+  /rules:
+    get:
+      tags:
+        - Rules
+      summary: Get all rules from database
+      operationId: getAllRules
+      responses:
+        '200':
+          description: List of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rule'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    
+    post:
+      tags:
+        - Rules
+      summary: Create a new rule in database
+      operationId: createRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleInput'
+      responses:
+        '201':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleCreatedResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rules/{app}:
+    get:
+      tags:
+        - Rules
+      summary: Get rules filtered by app
+      operationId: getRulesByApp
+      parameters:
+        - name: app
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Filtered rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rule'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rules/{id}:
+    delete:
+      tags:
+        - Rules
+      summary: Delete a rule by ID
+      operationId: deleteRule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Rule deleted
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sdk-templates:
+    get:
+      tags:
+        - Templates
+      summary: List available SDK templates
+      operationId: getSdkTemplates
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /template/{templateName}:
+    get:
+      tags:
+        - Templates
+      summary: Get template content
+      operationId: getTemplateContent
+      parameters:
+        - name: templateName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateContentResponse'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /telemetry/status:
+    get:
+      tags:
+        - Telemetry
+      summary: Get telemetry status
+      operationId: getTelemetryStatus
+      responses:
+        '200':
+          description: Telemetry status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TelemetryStatus'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    # Import from SDK via generator config (importMappings)
+    # These definitions are for spec validation only
+    
+    Rule:
+      type: object
+      x-typescript-type: Rule
+      x-import: "@alephscript/mcp-core-sdk/types/prolog"
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        content:
+          type: string
+        app:
+          type: string
+        predicate:
+          type: string
+        arity:
+          type: string
+        example:
+          type: string
+        evalCompatible:
+          type: string
+      required:
+        - name
+        - content
+
+    RuleInput:
+      type: object
+      x-typescript-type: RuleInput
+      x-import: "@alephscript/mcp-core-sdk/types/prolog"
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+        app:
+          type: string
+        predicate:
+          type: string
+        arity:
+          type: string
+        example:
+          type: string
+        evalCompatible:
+          type: string
+      required:
+        - name
+        - content
+
+    RuleCreatedResponse:
+      type: object
+      x-typescript-type: RuleCreatedResponse
+      x-import: "@alephscript/mcp-core-sdk/types/prolog"
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+      required:
+        - id
+
+    Template:
+      type: object
+      x-typescript-type: Template
+      x-import: "@alephscript/mcp-core-sdk/types/prolog"
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        main:
+          type: string
+        files:
+          type: array
+          items:
+            type: string
+        exports:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+
+    TemplateContentResponse:
+      type: object
+      x-typescript-type: TemplateContentResponse
+      x-import: "@alephscript/mcp-core-sdk/types/prolog"
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    TelemetryStatus:
+      type: object
+      x-typescript-type: TelemetryStatus
+      x-import: "@alephscript/mcp-core-sdk/types/prolog"
+      properties:
+        sensor:
+          type: string
+        value:
+          oneOf:
+            - type: string
+            - type: number
+      required:
+        - sensor
+        - value
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+  responses:
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
