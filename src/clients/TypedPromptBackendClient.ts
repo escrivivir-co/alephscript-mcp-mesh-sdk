@@ -95,6 +95,7 @@ export class TypedPromptBackendClient {
 
 	/**
 	 * Get all schemas, optionally filtered
+	 * Note: Backend returns array directly, not wrapped in { schemas: [...] }
 	 */
 	async getAllSchemas(libraryId?: number, category?: string): Promise<Schema[]> {
 		const params = new URLSearchParams();
@@ -104,8 +105,9 @@ export class TypedPromptBackendClient {
 		const query = params.toString();
 		const url = query ? `/schemas?${query}` : '/schemas';
 		
-		const response = await this.fetch<{ schemas: Schema[] }>(url);
-		return response.schemas || [];
+		// Backend returns array directly: [Schema, Schema, ...]
+		const response = await this.fetch<Schema[]>(url);
+		return Array.isArray(response) ? response : [];
 	}
 
 	/**

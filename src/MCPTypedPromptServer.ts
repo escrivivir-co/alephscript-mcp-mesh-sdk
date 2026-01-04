@@ -202,8 +202,12 @@ export class MCPTypedPromptServer extends BaseMCPServer {
 	private setupResources(): void {
 		// Resource: Schema by ID
 		this.server.resource(
+			"typed-prompt-schema",
 			"typed-prompt://schemas/{id}",
-			"Get schema details by ID",
+			{
+				description: "Get schema details by ID",
+				mimeType: "application/json",
+			},
 			async (uri) => {
 				const idMatch = uri.href.match(/schemas\/(\d+)/);
 				if (!idMatch) {
@@ -223,8 +227,12 @@ export class MCPTypedPromptServer extends BaseMCPServer {
 
 		// Resource: Library by ID
 		this.server.resource(
+			"typed-prompt-library",
 			"typed-prompt://libraries/{id}",
-			"Get library details by ID",
+			{
+				description: "Get library details by ID",
+				mimeType: "application/json",
+			},
 			async (uri) => {
 				const idMatch = uri.href.match(/libraries\/(\d+)/);
 				if (!idMatch) {
@@ -244,8 +252,12 @@ export class MCPTypedPromptServer extends BaseMCPServer {
 
 		// Resource: All schemas list
 		this.server.resource(
+			"typed-prompt-schemas-list",
 			"typed-prompt://schemas",
-			"Get list of all schemas",
+			{
+				description: "Get list of all schemas",
+				mimeType: "application/json",
+			},
 			async (uri) => {
 				const result = await this.handleListSchemas();
 				return {
