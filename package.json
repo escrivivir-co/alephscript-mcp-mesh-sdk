@@ -17,6 +17,7 @@
     "start:wiki": "cross-env NODE_ENV=development tsx src/MCPWikiBrowserServerImpl.ts",
     "start:state": "cross-env NODE_ENV=development tsx src/MCPStateMachineServerImpl.ts",
     "start:prolog": "cross-env NODE_ENV=development tsx src/MCPPrologServer.ts",
+    "start:typed-prompt": "cross-env NODE_ENV=development tsx src/MCPTypedPromptServer.ts",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "test:watch": "jest --watchAll",
