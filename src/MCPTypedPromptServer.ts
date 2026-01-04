@@ -11,6 +11,7 @@ import { DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG } from "./configs/DEFAULT_TYPED_
 import { TypedPromptBackendClient, createTypedPromptBackendClient } from "./clients";
 import { l } from "./Logger";
 import { z } from "zod";
+import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp";
 import Ajv from "ajv";
 
 // ============================================
@@ -200,20 +201,19 @@ export class MCPTypedPromptServer extends BaseMCPServer {
 	// ============================================
 
 	private setupResources(): void {
-		// Resource: Schema by ID
+		// Resource: Schema by ID (dynamic template)
 		this.server.resource(
 			"typed-prompt-schema",
-			"typed-prompt://schemas/{id}",
+			new ResourceTemplate("typed-prompt://schemas/{id}", { list: undefined }),
 			{
 				description: "Get schema details by ID",
 				mimeType: "application/json",
 			},
-			async (uri) => {
-				const idMatch = uri.href.match(/schemas\/(\d+)/);
-				if (!idMatch) {
+			async (uri, { id }) => {
+				const schemaId = parseInt(id as string, 10);
+				if (isNaN(schemaId)) {
 					return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify({ error: "Invalid schema ID" }) }] };
 				}
-				const schemaId = parseInt(idMatch[1], 10);
 				const result = await this.handleGetSchema(schemaId);
 				return {
 					contents: [{
@@ -225,20 +225,19 @@ export class MCPTypedPromptServer extends BaseMCPServer {
 			}
 		);
 
-		// Resource: Library by ID
+		// Resource: Library by ID (dynamic template)
 		this.server.resource(
 			"typed-prompt-library",
-			"typed-prompt://libraries/{id}",
+			new ResourceTemplate("typed-prompt://libraries/{id}", { list: undefined }),
 			{
 				description: "Get library details by ID",
 				mimeType: "application/json",
 			},
-			async (uri) => {
-				const idMatch = uri.href.match(/libraries\/(\d+)/);
-				if (!idMatch) {
+			async (uri, { id }) => {
+				const libraryId = parseInt(id as string, 10);
+				if (isNaN(libraryId)) {
 					return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify({ error: "Invalid library ID" }) }] };
 				}
-				const libraryId = parseInt(idMatch[1], 10);
 				const result = await this.backendClient.getLibrary(libraryId);
 				return {
 					contents: [{
