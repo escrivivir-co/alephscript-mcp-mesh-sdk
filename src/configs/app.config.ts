@@ -3,6 +3,7 @@ import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./DEFAULT_DEVOPS_MCP_SERVER_CO
 import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "./DEFAULT_PROLOG_MCP_SERVER_CONFIG";
 import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG";
 import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from "./DEFAULT_WIKI_MCP_SERVER_CONFIG";
+import { DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG } from "./DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG";
 
 export interface AppConfig {
     [key: string]: any;
@@ -18,6 +19,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             "wiki-mcp-browser": DEFAULT_WIKI_MCP_SERVER_CONFIG,
             "devops-mcp-server": DEFAULT_DEVOPS_MCP_SERVER_CONFIG,
             "prolog-mcp-server": DEFAULT_PROLOG_MCP_SERVER_CONFIG,
+            "typed-prompt-mcp-server": DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG,
         },
     },
 }

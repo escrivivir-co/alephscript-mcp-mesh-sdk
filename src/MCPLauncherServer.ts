@@ -6,7 +6,7 @@
 import { BaseMCPServer } from "./BaseMCPServer";
 import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from "zod";
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, exec } from "child_process";
 import axios from "axios";
 import { MCPDriverAdapter } from "@/drivers";
 import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_WIKI_MCP_SERVER_CONFIG";
@@ -15,6 +15,7 @@ import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_XPLUS1_MCP_S
 import { DEFAULT_LAUNCHER_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_LAUNCHER_MCP_SERVER_CONFIG";
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_PROLOG_MCP_SERVER_CONFIG";
+import { DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG";
 import { l } from "./Logger";
 import { AppConfig, DEFAULT_APP_CONFIG, getConfigOrDefault } from "@/configs/app.config";
 
@@ -32,6 +33,7 @@ export const CONFIGS_BASE_MCP_SERVER = {
     "wiki-mcp-browser": DEFAULT_WIKI_MCP_SERVER_CONFIG,
     "devops-mcp-server": DEFAULT_DEVOPS_MCP_SERVER_CONFIG,
     "prolog-mcp-server": DEFAULT_PROLOG_MCP_SERVER_CONFIG,
+    "typed-prompt-mcp-server": DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG,
 };
 
 /**
@@ -70,6 +72,8 @@ export class MCPLauncherServer extends BaseMCPServer {
     private session: LaunchSession;
     private processes: Map<string, ChildProcess> = new Map();
     private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map();
+    /** Tracks servers being intentionally stopped - prevents auto-restart on exit */
+    private intentionalStops: Set<string> = new Set();
     public requestToLaunchConfigs: Map<string, BaseMCPServerConfig> = new Map();
     mcpDriver: MCPDriverAdapter | undefined;
 
@@ -1319,12 +1323,15 @@ export class MCPLauncherServer extends BaseMCPServer {
             args,
         });
 
-        // Launch in separate process (hidden console on Windows)
+        // Launch in separate process
+        // Note: On Windows we use shell:true to resolve npx.cmd properly
+        // On Unix, we use detached:true + process group kill for clean shutdown
+        const isWindows = process.platform === "win32";
         const serverProcess: any = spawn(tsxCmd, args, {
-            stdio: "pipe",
+            stdio: ["ignore", "pipe", "pipe"],  // stdin ignored, capture stdout/stderr
             env,
-            detached: true,
-            shell: process.platform === "win32",
+            detached: !isWindows,  // Only detach on Unix (creates process group)
+            shell: isWindows,      // Shell needed on Windows for .cmd resolution
             windowsHide: true,
         });
 
@@ -1539,10 +1546,12 @@ export class MCPLauncherServer extends BaseMCPServer {
             this.processes.delete(config.id);
             this.clearHealthCheck(config.id);
 
-            // Auto-restart if configured
-            if (config.autoRestart && code !== 0) {
+            // Auto-restart if configured AND not an intentional stop
+            if (config.autoRestart && code !== 0 && !this.intentionalStops.has(config.id)) {
                 this.autoRestartServer(config);
             }
+            // Clean up intentional stop flag
+            this.intentionalStops.delete(config.id);
         });
 
         process.on("error", (error) => {
@@ -1650,16 +1659,21 @@ export class MCPLauncherServer extends BaseMCPServer {
     }
 
     /**
-     * Stop a server
+     * Stop a server - cross-platform implementation
+     * - Windows: Uses taskkill /T /F to kill process tree
+     * - macOS/Linux: Uses process group kill (-pid)
      */
     private async stopServer(
         serverId: string,
         graceful: boolean = true
     ): Promise<void> {
-        const process = this.processes.get(serverId);
-        if (!process) {
+        const proc = this.processes.get(serverId);
+        if (!proc) {
             throw new Error(`Server ${serverId} is not running`);
         }
+
+        // Mark as intentional stop BEFORE killing to prevent auto-restart race
+        this.intentionalStops.add(serverId);
 
         const status = this.session.managedServers.get(serverId);
         if (status) {
@@ -1669,18 +1683,87 @@ export class MCPLauncherServer extends BaseMCPServer {
 
         this.clearHealthCheck(serverId);
 
-        if (graceful) {
-            process.kill("SIGTERM");
-            // Wait for graceful shutdown
-            await this.sleep(5000);
+        const pid = proc.pid;
+        if (!pid) {
+            l.w(`MCP Launcher: No PID for ${serverId}, cannot kill`);
+            this.processes.delete(serverId);
+            this.intentionalStops.delete(serverId); // Clean up flag
+            return;
         }
 
-        // Force kill if still running
-        if (!process.killed) {
-            process.kill("SIGKILL");
+        // Kill the process tree
+        await this.killProcessTree(pid, graceful);
+
+        // Wait and verify termination
+        const terminated = await this.waitForProcessExit(pid, 5000);
+        if (!terminated) {
+            l.w(`MCP Launcher: Process ${serverId} (PID ${pid}) did not terminate, forcing...`);
+            await this.killProcessTree(pid, false); // Force kill
+            // Wait a bit more after force kill
+            await this.waitForProcessExit(pid, 2000);
         }
 
         this.processes.delete(serverId);
+        // Note: intentionalStops is cleaned up in the 'exit' handler to handle race conditions
+        // But also clean here in case the handler already fired
+        this.intentionalStops.delete(serverId);
+        l.i(`MCP Launcher: Server ${serverId} stopped successfully`);
+    }
+
+    /**
+     * Kill a process and all its children - cross-platform
+     * @param pid Process ID to kill
+     * @param graceful If true, try SIGTERM first (Unix only)
+     */
+    private async killProcessTree(pid: number, graceful: boolean = true): Promise<void> {
+        return new Promise((resolve) => {
+            if (process.platform === "win32") {
+                // Windows: taskkill with /T (tree) and /F (force)
+                // This kills the cmd.exe shell AND all child processes
+                const forceFlag = graceful ? "" : "/F";
+                exec(`taskkill /pid ${pid} /T ${forceFlag}`, (error) => {
+                    if (error) {
+                        l.v(`MCP Launcher: taskkill error (may be already dead)`, { pid, error: error.message });
+                    }
+                    resolve();
+                });
+            } else {
+                // macOS/Linux: Kill the process group (negative PID)
+                // This works because we spawned with detached:true
+                try {
+                    const signal = graceful ? "SIGTERM" : "SIGKILL";
+                    // Kill process group (all children)
+                    process.kill(-pid, signal);
+                    l.v(`MCP Launcher: Sent ${signal} to process group`, { pid });
+                } catch (error: any) {
+                    // ESRCH = process doesn't exist (already dead)
+                    if (error.code !== "ESRCH") {
+                        l.v(`MCP Launcher: kill error`, { pid, error: error.message });
+                    }
+                }
+                resolve();
+            }
+        });
+    }
+
+    /**
+     * Wait for a process to exit with timeout
+     * @returns true if process exited, false if timeout
+     */
+    private async waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+            try {
+                // Signal 0 tests if process exists without killing it
+                process.kill(pid, 0);
+                // Process still alive, wait and retry
+                await this.sleep(200);
+            } catch {
+                // Process doesn't exist = terminated successfully
+                return true;
+            }
+        }
+        return false; // Timeout - process still alive
     }
 
     /**
