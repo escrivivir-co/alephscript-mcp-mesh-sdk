@@ -5,18 +5,29 @@
  * with session management for Teatro multi-agent scenarios
  * 
  * @épica PROLOG-CLIENT-GEN-1.0.0 - Added PrologBackendClient for SQLite access
+ * @épica MCP-CHANNELS-1.0.0 - Added EuridiceBot for Socket.IO mesh integration
  */
 
 import { BaseMCPServer } from "./BaseMCPServer";
 import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "./configs/DEFAULT_PROLOG_MCP_SERVER_CONFIG";
 import { PrologSessionManager } from "./services/PrologSessionManager";
 import { PrologBackendClient, createPrologBackendClient } from "./clients";
+import { AlephScriptClient } from "./libs/alephscript-client";
 import { l } from "./Logger";
 import { z } from "zod";
+
+// Helper function for generating unique session hashes
+function getHash(key: string): string {
+    const h = (s: string) => s.substring(s.length - 2);
+    const a = new Date().getTime().toString();
+    const b = Math.random().toString();
+    return key + ">" + h(a) + h(b);
+}
 
 export class MCPPrologServer extends BaseMCPServer {
 	private sessionManager: PrologSessionManager;
 	private backendClient: PrologBackendClient;
+	private euridiceBot!: AlephScriptClient;
 
 	constructor() {
 		super(DEFAULT_PROLOG_MCP_SERVER_CONFIG);
@@ -30,13 +41,91 @@ export class MCPPrologServer extends BaseMCPServer {
 		});
 		
 		this.backendClient = createPrologBackendClient();
-		l.info("MCPPrologServer initialized with session management and backend client");
+		
+		// Initialize EuridiceBot for Socket.IO mesh communication
+		this.initEuridiceBot();
+		
+		l.info("MCPPrologServer initialized with session management, backend client, and Socket.IO");
+	}
+
+	/**
+	 * Initialize EuridiceBot - Socket.IO client for Prolog operations
+	 * Connects to the AlephScript mesh and registers as MASTER of Prolog_ROOM
+	 */
+	private initEuridiceBot(): void {
+		try {
+			const socketUrl = process.env.SOCKET_MESH_URL || "http://localhost:3010";
+			const serverName = DEFAULT_PROLOG_MCP_SERVER_CONFIG.id;
+			
+			this.euridiceBot = new AlephScriptClient(
+				serverName,
+				socketUrl
+			);
+			
+			this.euridiceBot.initTriggersDefinition.push(() => {
+				const ROOM_NAME = serverName + "_ROOM";
+				const REGISTER_PAYLOAD = { 
+					usuario: this.euridiceBot.name, 
+					sesion: getHash("EuridiceBot")
+				};
+				
+				this.euridiceBot.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD);
+				this.euridiceBot.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+				this.euridiceBot.room("MAKE_MASTER", { 
+					features: [
+						"PROLOG_QUERY",
+						"PROLOG_ASSERT", 
+						"PROLOG_RETRACT",
+						"PROLOG_LOAD_FILE",
+						"PROLOG_GET_SESSIONS",
+						"PROLOG_CREATE_SESSION",
+						"PROLOG_DESTROY_SESSION"
+					] 
+				}, ROOM_NAME);
+
+				// Handle incoming capability requests
+				this.euridiceBot.io.on("GET_PROLOG_QUERY", async (data: any) => {
+					l.info("EuridiceBot received PROLOG_QUERY request", data);
+					const result = await this.handleQueryProlog(data.sessionId, data.query);
+					this.euridiceBot.room("SET_PROLOG_QUERY", result, ROOM_NAME);
+				});
+
+				this.euridiceBot.io.on("GET_PROLOG_SESSIONS", async () => {
+					l.info("EuridiceBot received GET_SESSIONS request");
+					const sessions = await this.sessionManager.listSessions();
+					this.euridiceBot.room("SET_PROLOG_SESSIONS", { sessions }, ROOM_NAME);
+				});
+
+				// Subscribe to all events for debugging
+				this.euridiceBot.io.onAny((eventName: string, ...args: any[]) => {
+					l.d(`EuridiceBot event: ${eventName}`, args);
+				});
+				
+				l.info("EuridiceBot initialized and connected to AlephScript mesh", {
+					botName: serverName,
+					room: ROOM_NAME,
+					socketUrl,
+					capabilities: 7
+				});
+			});
+
+			l.info("EuridiceBot client created successfully");
+		} catch (error) {
+			l.e("Failed to initialize EuridiceBot", { error });
+		}
 	}
 
 	protected setupServerSpecifics(): void {
 		this.setupTools();
 		this.setupResources();
 		this.setupPrompts();
+		
+		// Connect EuridiceBot to mesh after server is ready
+		if (this.euridiceBot) {
+			l.info("Connecting EuridiceBot to AlephScript mesh...");
+			this.euridiceBot.connect();
+		}
+		
 		l.info("MCPPrologServer tools, resources and prompts registered");
 	}
 

@@ -4,7 +4,7 @@
     "module": "commonjs",
     "lib": ["ES2020", "DOM"],
     "outDir": "./dist",
-    "rootDir": "../",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -34,10 +34,7 @@
     "resolveJsonModule": true
   },
   "include": [
-    "src/**/*",
-    "examples/**/*",
-    "scripts/**/*",
-    "../socket-gym/ws-server/src/alephscript/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",

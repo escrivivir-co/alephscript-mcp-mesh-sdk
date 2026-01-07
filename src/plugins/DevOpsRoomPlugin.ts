@@ -6,7 +6,7 @@
  * 
  * @package @alephscript/mcp-mesh-sdk
  * @module plugins/DevOpsRoomPlugin
- * @épica CHANNELS-SDK-1.0.0
+ * @épica MCP-CHANNELS-1.0.0
  */
 
 import { z } from 'zod';
@@ -19,7 +19,8 @@ import {
 } from './IDevOpsPlugin';
 
 // ============================================
-// Room Protocol Types (inline to avoid import issues)
+// Room Protocol Types (inline for now)
+// TODO: Import from @alephscript/mcp-core-sdk when monorepo is configured
 // ============================================
 
 type RoomId = string;

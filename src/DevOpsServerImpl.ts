@@ -10,17 +10,26 @@ import { ContentManager, CRUDToolsManager, CoreComponentsManager } from "@manage
 import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin, DevOpsRoomPlugin } from "@plugins";
 import { l } from "./Logger";
 
+// Helper function for generating unique session hashes
+function getHash(key: string): string {
+    const l = (s: string) => s.substring(s.length - 2);
+    const a = new Date().getTime().toString();
+    const b = Math.random().toString();
+    return key + ">" + l(a) + l(b);
+}
+
 
 
 /**
  * DevOps MCP Server
  * Provides DevOps automation and management capabilities
  * NEW: Plugin system for modular functionality
+ * NEW: ProserpinaBot Socket.IO client for mesh communication
  */
 export class DevOpsServer extends BaseMCPServer {
     private mcpAdapter?: MCPDriverAdapter;
     private pluginManager?: DevOpsPluginManager;
-    private proserpinaBot: AlephScriptClient = new AlephScriptClient;
+    private proserpinaBot!: AlephScriptClient;
 
     // Manager architecture for better code organization (NEW)
     private contentManager?: ContentManager;
@@ -36,13 +45,58 @@ export class DevOpsServer extends BaseMCPServer {
         // Initialize manager architecture for better code organization
         this.initializeManagers();
 
-        // Initialize ProserpinaBot - now handled by DevOpsRoomPlugin
-        // this.proserpinaBot.initProserpinaBot();
+        // Initialize ProserpinaBot - Socket.IO client for mesh communication
+        this.initProserpinaBot();
 
         // Initialize MCP adapter for connecting to other servers
         // this.initializeMCPAdapter();
         // Plugin system will be initialized in setupServerSpecifics
         // Initialize default content will be called in setupServerSpecifics
+    }
+
+    /**
+     * Initialize ProserpinaBot - Socket.IO client for DevOps operations
+     * Connects to the AlephScript mesh and registers as MASTER of DevOps_ROOM
+     */
+    private initProserpinaBot(): void {
+        try {
+            const socketUrl = this.appConfig?.launcher?.socketUrl || "http://localhost:3010";
+            const serverName = DEFAULT_DEVOPS_MCP_SERVER_CONFIG.id;
+            
+            this.proserpinaBot = new AlephScriptClient(
+                serverName,
+                socketUrl
+            );
+            
+            this.proserpinaBot.initTriggersDefinition.push(() => {
+                const ROOM_NAME = serverName + "_ROOM";
+                const REGISTER_PAYLOAD = { 
+                    usuario: this.proserpinaBot.name, 
+                    sesion: getHash("ProserpinaBot")
+                };
+                
+                this.proserpinaBot.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD);
+                this.proserpinaBot.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+                this.proserpinaBot.room("MAKE_MASTER", { 
+                    features: ["DevOps_Operations", "MCP_Server_Control", "Plugin_Management"] 
+                }, ROOM_NAME);
+
+                // Subscribe to all events for debugging
+                this.proserpinaBot.io.onAny((eventName: string, ...args: any[]) => {
+                    l.d(`ProserpinaBot event: ${eventName}`, args);
+                });
+                
+                l.i("ProserpinaBot initialized and connected to AlephScript mesh", {
+                    botName: serverName,
+                    room: ROOM_NAME,
+                    socketUrl
+                });
+            });
+
+            l.i("ProserpinaBot client created successfully");
+        } catch (error) {
+            l.e("Failed to initialize ProserpinaBot", { error });
+        }
     }
 
     /**
@@ -451,11 +505,10 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
         // Initialize plugin system after core tools are setup
         this.initializePluginSystem();
         
-        // Start ProserpinaBot connection to AlephScript server
+        // Start ProserpinaBot connection to AlephScript mesh
         if (this.proserpinaBot) {
-            l.i("Starting ProserpinaBot connection...");
-            // The bot will connect when its triggers are executed
-            // This happens automatically when the AlephScript client connects
+            l.i("Connecting ProserpinaBot to AlephScript mesh...");
+            this.proserpinaBot.connect();
         }
         
         // Note: Plugins are initialized during registration; avoid double init

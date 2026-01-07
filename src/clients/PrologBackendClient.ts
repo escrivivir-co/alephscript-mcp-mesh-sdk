@@ -13,16 +13,55 @@
  * @fecha 2026-01-03
  */
 
-import type {
-  Rule,
-  RuleInput,
-  RuleCreatedResponse,
-  Template,
-  TemplateContentResponse,
-  TelemetryStatus,
-} from '@alephscript/mcp-core-sdk/types/prolog';
-
 import { l } from '../Logger';
+
+// ============================================
+// Prolog Types (inline for now)
+// TODO: Import from @alephscript/mcp-core-sdk when monorepo is configured
+// ============================================
+
+export interface Rule {
+  id?: number;
+  name: string;
+  content: string;
+  app?: string;
+  predicate?: string;
+  arity?: string;
+  example?: string;
+  evalCompatible?: string;
+}
+
+export interface RuleInput {
+  name: string;
+  content: string;
+  app?: string;
+  predicate?: string;
+  arity?: string;
+  example?: string;
+  evalCompatible?: string;
+}
+
+export interface RuleCreatedResponse {
+  id: number;
+  text: string;
+}
+
+export interface Template {
+  name: string;
+  description?: string;
+  main?: string;
+  files?: string[];
+  exports?: string[];
+}
+
+export interface TemplateContentResponse {
+  content: string;
+}
+
+export interface TelemetryStatus {
+  sensor: string;
+  value: string | number;
+}
 
 export interface PrologBackendClientConfig {
   baseUrl: string;

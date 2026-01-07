@@ -1,6 +1,7 @@
 import { DevOpsServer } from "./DevOpsServerImpl";
 import { Logger as l } from "./Logger";
-import { SocketIoMesh } from "@alephscript/mcp-core-sdk";
+// TODO: SocketIoMesh will be added when MCP-CHANNELS-1.0.0 is complete
+// import { SocketIoMesh } from "@alephscript/mcp-core-sdk";
 import { UIServer } from "./web/server";
 /**
  * CLI entry point - run as standalone MCP server
