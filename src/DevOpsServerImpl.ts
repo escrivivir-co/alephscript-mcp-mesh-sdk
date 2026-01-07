@@ -7,7 +7,7 @@ import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./configs/DEFAULT_DEVOPS_MCP_S
 import { MCPDriverAdapter } from "./drivers";
 import { AlephScriptClient } from "@libs/alephscript-client";
 import { ContentManager, CRUDToolsManager, CoreComponentsManager } from "@managers";
-import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin } from "@plugins";
+import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin, DevOpsRoomPlugin } from "@plugins";
 import { l } from "./Logger";
 
 
@@ -36,8 +36,8 @@ export class DevOpsServer extends BaseMCPServer {
         // Initialize manager architecture for better code organization
         this.initializeManagers();
 
-        // Initialize ProserpinaBot
-        this.proserpinaBot.initProserpinaBot();
+        // Initialize ProserpinaBot - now handled by DevOpsRoomPlugin
+        // this.proserpinaBot.initProserpinaBot();
 
         // Initialize MCP adapter for connecting to other servers
         // this.initializeMCPAdapter();
@@ -269,6 +269,31 @@ export class DevOpsServer extends BaseMCPServer {
                 l.i(
                     "DevOps: Default plugins registered and initialized"
                 );
+            }
+
+            // Register DevOps Room Plugin (Socket.IO MASTER-ROOM protocol)
+            const roomPluginEnabled = process.env.DEVOPS_ROOM_PLUGIN_ENABLED !== "false";
+            if (roomPluginEnabled) {
+                try {
+                    const devOpsRoomPlugin = new DevOpsRoomPlugin();
+                    await this.pluginManager.registerPlugin(devOpsRoomPlugin, {
+                        forceEnable: true,
+                        skipInitialization: false,
+                        customSettings: {
+                            priority: "medium",
+                            autoLoad: true,
+                            meshUrl: process.env.SOCKET_MESH_URL || "http://localhost:3010",
+                            roomId: "DevOps_ROOM",
+                        },
+                    });
+                    l.i("DevOps: Room Plugin registered for MASTER-ROOM protocol");
+                } catch (roomPluginError) {
+                    l.w("DevOps: Failed to register Room Plugin (Socket.IO mesh may be unavailable)", { 
+                        error: roomPluginError 
+                    });
+                }
+            } else {
+                l.v("DevOps: Room Plugin disabled via env (DEVOPS_ROOM_PLUGIN_ENABLED=false)");
             }
         } catch (error) {
             l.e("DevOps: Failed to register default plugins", {
