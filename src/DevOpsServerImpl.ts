@@ -498,6 +498,12 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
      * Setup DevOps specific tools, resources, and prompts
      */
     protected async setupServerSpecifics(): Promise<void> {
+        // Initialize persistence layer first (loads from disk)
+        if (this.contentManager) {
+            await this.contentManager.init();
+            l.i("DevOps: PersistentContentManager initialized (data loaded from disk)");
+        }
+
         // Register manager tools first (NEW: Additional CRUD and core tools)
         this.registerManagerTools();
 
