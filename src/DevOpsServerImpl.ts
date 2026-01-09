@@ -360,10 +360,12 @@ export class DevOpsServer extends BaseMCPServer {
 
     /**
      * Initialize default resources and prompts
+     * Uses "add if not exists" pattern to avoid conflicts with persisted data
      */
     private initializeDefaultContent(): void {
-        // Initialize default DevOps prompts
-        this.contentManager?.addPrompt({
+        // Initialize default DevOps prompts (skip if already loaded from disk)
+        if (!this.contentManager?.getPrompt("start-system")) {
+            this.contentManager?.addPrompt({
             id: "start-system",
             name: "Arrancar el sistema",
             description: "Prompt para arrancar el sistema usando npm start",
@@ -399,10 +401,12 @@ Por favor, utiliza las herramientas base de VS Code para ejecutar el comando \`n
             },
             createdAt: Date.now(),
             updatedAt: Date.now(),
-        });
+            });
+        }
 
-        this.contentManager?.addPrompt({
-            id: "open-web-console",
+        if (!this.contentManager?.getPrompt("open-web-console")) {
+            this.contentManager?.addPrompt({
+                id: "open-web-console",
             name: "Abrir consola web",
             description: "Prompt para abrir la consola web en localhost:8080",
             content: `🌐 **Consola Web**
@@ -430,12 +434,14 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
                 category: "devops",
                 priority: "medium",
             },
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-        });
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            });
+        }
 
-        // Initialize default resources
-        this.contentManager?.addResource({
+        // Initialize default resources (skip if already loaded from disk)
+        if (!this.contentManager?.getResource("project-status")) {
+            this.contentManager?.addResource({
             id: "project-status",
             name: "Estado del Proyecto",
             description: "Estado actual del proyecto y servicios",
@@ -455,12 +461,14 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
                 category: "status",
                 updateInterval: "30s",
             },
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-        });
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            });
+        }
 
-        this.contentManager?.addResource({
-            id: "npm-scripts",
+        if (!this.contentManager?.getResource("npm-scripts")) {
+            this.contentManager?.addResource({
+                id: "npm-scripts",
             name: "Scripts NPM Disponibles",
             description: "Lista de scripts NPM disponibles en el proyecto",
             uri: "devops://npm/scripts",
@@ -486,9 +494,10 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
                 category: "documentation",
                 source: "packageon",
             },
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-        });
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+            });
+        }
 
         // Add dynamic resources that query live game state
         this.setupDynamicResources();
@@ -498,10 +507,18 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
      * Setup DevOps specific tools, resources, and prompts
      */
     protected async setupServerSpecifics(): Promise<void> {
+        l.i("DevOps: setupServerSpecifics started");
+        
         // Initialize persistence layer first (loads from disk)
         if (this.contentManager) {
-            await this.contentManager.init();
-            l.i("DevOps: PersistentContentManager initialized (data loaded from disk)");
+            try {
+                l.i("DevOps: Initializing PersistentContentManager...");
+                await this.contentManager.init();
+                l.i("DevOps: PersistentContentManager initialized (data loaded from disk)");
+            } catch (error) {
+                l.e("DevOps: Failed to initialize PersistentContentManager", { error });
+                // Continue without persistence if it fails
+            }
         }
 
         // Register manager tools first (NEW: Additional CRUD and core tools)

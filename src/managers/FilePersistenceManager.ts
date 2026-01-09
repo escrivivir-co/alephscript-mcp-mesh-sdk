@@ -385,11 +385,18 @@ export class FileDatabase {
         if (this.initialized) return;
 
         try {
+            l.i(`FileDatabase: Creating directory ${this.dbPath}`);
             await fs.mkdir(this.dbPath, { recursive: true });
-            await this.saveMetadata();
+            
+            // Mark as initialized BEFORE saving metadata to prevent infinite loop
+            // (saveMetadata -> getMetadata -> listCollections -> init)
             this.initialized = true;
+            
+            l.i(`FileDatabase: Directory created, saving metadata...`);
+            await this.saveMetadata();
             l.i(`Database '${this.config.serverName}' initialized at ${this.dbPath}`);
         } catch (error) {
+            this.initialized = false; // Reset on error
             l.e(`Failed to initialize database '${this.config.serverName}'`, { error });
             throw error;
         }
@@ -482,10 +489,14 @@ export class FileDatabase {
 /**
  * Default data directory resolver
  * Uses ARCHIVO/PLUGINS/MCP_DATA/{serverName}/ as storage location
+ * Navigates up from mcp-mesh-sdk to workspace root (../../../)
  */
 export function getDefaultDataDir(): string {
-    // Try to resolve relative to workspace root
-    const workspaceRoot = process.cwd();
+    // mcp-mesh-sdk is at MCPGallery/mcp-mesh-sdk, need to go up to workspace root
+    const moduleDir = path.dirname(new URL(import.meta.url).pathname);
+    // moduleDir = .../MCPGallery/mcp-mesh-sdk/src/managers
+    // Go up 4 levels: managers -> src -> mcp-mesh-sdk -> MCPGallery -> ALEPH
+    const workspaceRoot = path.resolve(moduleDir, '..', '..', '..', '..');
     return path.join(workspaceRoot, 'ARCHIVO', 'PLUGINS', 'MCP_DATA');
 }
 
