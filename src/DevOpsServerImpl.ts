@@ -6,7 +6,7 @@ import { BaseMCPServerConfig } from "@wrapper/MCPServerConfig";
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./configs/DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 import { MCPDriverAdapter } from "./drivers";
 import { AlephScriptClient } from "@libs/alephscript-client";
-import { ContentManager, CRUDToolsManager, CoreComponentsManager } from "@managers";
+import { PersistentContentManager, CRUDToolsManager, CoreComponentsManager } from "@managers";
 import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin, DevOpsRoomPlugin } from "@plugins";
 import { l } from "./Logger";
 
@@ -32,7 +32,8 @@ export class DevOpsServer extends BaseMCPServer {
     private proserpinaBot!: AlephScriptClient;
 
     // Manager architecture for better code organization (NEW)
-    private contentManager?: ContentManager;
+    // Using PersistentContentManager for MongoDB-style file persistence
+    private contentManager?: PersistentContentManager;
     private crudToolsManager?: CRUDToolsManager;
     private coreComponentsManager?: CoreComponentsManager;
 
@@ -104,8 +105,9 @@ export class DevOpsServer extends BaseMCPServer {
      */
     private initializeManagers(): void {
         try {
-            // Content manager for CRUD operations
-            this.contentManager = new ContentManager(
+            // Content manager for CRUD operations with file persistence
+            // Data stored in: ARCHIVO/PLUGINS/MCP_DATA/devops-mcp-server/
+            this.contentManager = new PersistentContentManager(
                 this.server,
                 "devops-mcp-server"
             );

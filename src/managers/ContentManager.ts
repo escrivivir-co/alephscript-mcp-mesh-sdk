@@ -5,14 +5,15 @@
 
 
 import { GenericCRUDManager } from './GenericCRUDManager.js';
-import { ResourceDefinition, PromptDefinition, ContentFilters } from './ContentDefinitions.js';
+import { IContentManager, ResourceDefinition, PromptDefinition, ContentFilters } from './ContentDefinitions.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { l } from '@/Logger.js';
 
 /**
  * Content Manager for handling prompts and resources
+ * Implements IContentManager interface for compatibility with CRUDToolsManager
  */
-export class ContentManager {
+export class ContentManager implements IContentManager {
   private prompts: GenericCRUDManager<PromptDefinition>;
   private resources: GenericCRUDManager<ResourceDefinition>;
   private server: McpServer;

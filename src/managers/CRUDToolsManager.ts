@@ -5,19 +5,19 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { ContentManager } from './ContentManager.js';
-import { ResourceDefinition, PromptDefinition } from './ContentDefinitions.js';
+import { IContentManager, ResourceDefinition, PromptDefinition } from './ContentDefinitions.js';
 
 /**
  * CRUD Tools Manager
  * Registers generic CRUD tools for prompts and resources
+ * Works with any IContentManager implementation (ContentManager or PersistentContentManager)
  */
 export class CRUDToolsManager {
-  private contentManager: ContentManager;
+  private contentManager: IContentManager;
   private server: McpServer;
   private serverName: string;
 
-  constructor(server: McpServer, contentManager: ContentManager, serverName: string) {
+  constructor(server: McpServer, contentManager: IContentManager, serverName: string) {
     this.server = server;
     this.contentManager = contentManager;
     this.serverName = serverName;
@@ -87,7 +87,7 @@ export class CRUDToolsManager {
           updatedAt: Date.now()
         };
 
-        this.contentManager.addPrompt(prompt);
+        await Promise.resolve(this.contentManager.addPrompt(prompt));
 
         return {
           content: [{
@@ -116,13 +116,13 @@ export class CRUDToolsManager {
         metadata: z.record(z.string(), z.any()).optional().describe('Nuevos metadatos')
       },
       async ({ id, name, description, content, parameters, metadata }) => {
-        const updatedPrompt = this.contentManager.updatePrompt(id, {
+        const updatedPrompt = await Promise.resolve(this.contentManager.updatePrompt(id, {
           name,
           description,
           content,
           parameters,
           metadata
-        });
+        }));
 
         return {
           content: [{
@@ -150,7 +150,7 @@ export class CRUDToolsManager {
           throw new Error(`Prompt with ID '${id}' not found`);
         }
 
-        this.contentManager.deletePrompt(id);
+        await Promise.resolve(this.contentManager.deletePrompt(id));
 
         return {
           content: [{
@@ -248,7 +248,7 @@ export class CRUDToolsManager {
           updatedAt: Date.now()
         };
 
-        this.contentManager.addResource(resource);
+        await Promise.resolve(this.contentManager.addResource(resource));
 
         return {
           content: [{
@@ -277,12 +277,12 @@ export class CRUDToolsManager {
         metadata: z.record(z.string(), z.any()).optional().describe('Nuevos metadatos')
       },
       async ({ id, name, description, content, metadata }) => {
-        const updatedResource = this.contentManager.updateResource(id, {
+        const updatedResource = await Promise.resolve(this.contentManager.updateResource(id, {
           name,
           description,
           content,
           metadata
-        });
+        }));
 
         return {
           content: [{
@@ -310,7 +310,7 @@ export class CRUDToolsManager {
           throw new Error(`Resource with ID '${id}' not found`);
         }
 
-        this.contentManager.deleteResource(id);
+        await Promise.resolve(this.contentManager.deleteResource(id));
 
         return {
           content: [{
