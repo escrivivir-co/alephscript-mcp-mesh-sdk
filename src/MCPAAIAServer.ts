@@ -85,13 +85,13 @@ export class MCPAAIAServer extends BaseMCPServer {
                 // Handle incoming capability requests
                 this.persefonBot.io.on("GET_AAIA_APPS", async () => {
                     l.info("PersefonBot received GET_AAIA_APPS request");
-                    const apps = this.sessionManager.getAvailableApps();
+                    const apps = await this.sessionManager.getAvailableApps();
                     this.persefonBot.room("SET_AAIA_APPS", { apps }, ROOM_NAME);
                 });
 
                 this.persefonBot.io.on("GET_AAIA_SESSIONS", async () => {
                     l.info("PersefonBot received GET_AAIA_SESSIONS request");
-                    const sessions = this.sessionManager.listSessions();
+                    const sessions = await this.sessionManager.listSessions();
                     this.persefonBot.room("SET_AAIA_SESSIONS", { sessions }, ROOM_NAME);
                 });
 
@@ -144,7 +144,7 @@ export class MCPAAIAServer extends BaseMCPServer {
             "List available AAIA applications that can be loaded",
             {},
             async () => {
-                const apps = this.sessionManager.getAvailableApps();
+                const apps = await this.sessionManager.getAvailableApps();
                 return {
                     content: [{ type: "text", text: JSON.stringify({ apps }, null, 2) }],
                 };
@@ -364,7 +364,7 @@ export class MCPAAIAServer extends BaseMCPServer {
                 mimeType: "application/json",
             },
             async () => {
-                const apps = this.sessionManager.getAvailableApps();
+                const apps = await this.sessionManager.getAvailableApps();
                 return {
                     contents: [{
                         uri: "aaia://apps/catalog",
@@ -420,7 +420,7 @@ export class MCPAAIAServer extends BaseMCPServer {
             },
             async ({ appId }) => {
                 if (!appId) {
-                    const apps = this.sessionManager.getAvailableApps();
+                    const apps = await this.sessionManager.getAvailableApps();
                     return {
                         messages: [{
                             role: "assistant",

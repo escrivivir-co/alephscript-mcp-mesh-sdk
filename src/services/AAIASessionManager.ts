@@ -1,89 +1,32 @@
 /**
- * AAIA Session Manager
- * Manages isolated AAIA runtime sessions with FIAs and Mundos
+ * AAIA Session Manager - Thin Client
+ * 
+ * Delegates to AAIA Backend (port 8007) as Source of Truth.
+ * This MCP Server is a thin client that exposes MCP tools
+ * but all logic lives in the Backend.
  * 
  * @épica MCP-AAIA-SERVER-1.0.0
- * Follows pattern from PrologSessionManager
+ * @épica AAIA-BACKEND-1.0.0 (refactor)
+ * @fecha 2026-01-18
  */
 
 import { l } from "../Logger";
 import { 
+    createAAIABackendClient,
+    AAIABackendClient,
     RunStateEnum, 
     IPercepto, 
     IEferencia, 
-    IAAIAApp, 
-    IFIAConfig,
-    FIAParadigma 
-} from "@alephscript/mcp-core-sdk";
+    IFIAInfo,
+    IMundoState,
+    FIAParadigma,
+} from "../clients/AAIABackendClient";
 
-// Re-export types from mcp-core-sdk for consumers
-export { RunStateEnum, IPercepto, IEferencia, IAAIAApp, IFIAConfig, FIAParadigma };
-
-// ============================================
-// Demo apps for initial testing
-// ============================================
-
-const DEMO_APPS: Record<string, IAAIAApp> = {
-    'demo-logica': {
-        id: 'demo-logica',
-        nombre: 'Demo Lógica',
-        descripcion: 'FIA de paradigma lógico para pruebas',
-        paradigmaPrincipal: 'logica',
-        fias: [
-            { nombre: 'LogicaFIA', paradigma: 'logica', clase: 'FIALogica' }
-        ],
-    },
-    'demo-sbr': {
-        id: 'demo-sbr',
-        nombre: 'Demo SBR',
-        descripcion: 'FIA de paradigma SBR (Sistema Basado en Reglas)',
-        paradigmaPrincipal: 'sbr',
-        fias: [
-            { nombre: 'SBRFIA', paradigma: 'sbr', clase: 'FIASBR' }
-        ],
-    },
-    'demo-situada': {
-        id: 'demo-situada',
-        nombre: 'Demo Situada',
-        descripcion: 'FIA de paradigma situada para IoT',
-        paradigmaPrincipal: 'situada',
-        fias: [
-            { nombre: 'SituadaFIA', paradigma: 'situada', clase: 'FIASituada' }
-        ],
-    },
-};
+// Re-export types for consumers
+export { RunStateEnum, IPercepto, IEferencia, IFIAInfo, IMundoState, FIAParadigma };
 
 // ============================================
-// Internal session state (private types)
-// ============================================
-
-interface FIAState {
-    index: number;
-    nombre: string;
-    paradigma: FIAParadigma;
-    clase: string;
-    runState: RunStateEnum;
-}
-
-interface MundoState {
-    ciclo: number;
-    modelo: Record<string, unknown>;
-    ultimoPercepto?: IPercepto;
-    ultimaEferencia?: IEferencia;
-}
-
-interface InternalAAIASession {
-    id: string;
-    appId: string;
-    app: IAAIAApp;
-    createdAt: Date;
-    lastUsedAt: Date;
-    mundoState: MundoState;
-    fiasState: FIAState[];
-}
-
-// ============================================
-// Public session types for MCP
+// Public session types for MCP (compatible)
 // ============================================
 
 export interface AAIASessionInfo {
@@ -101,110 +44,104 @@ export interface AAIASessionDetail {
     appId: string;
     appName: string;
     createdAt: string;
-    fias: FIAState[];
-    mundo: MundoState;
+    fias: IFIAInfo[];
+    mundo: IMundoState;
+}
+
+export interface IAAIAApp {
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    paradigmaPrincipal: FIAParadigma;
+    fias: Array<{ nombre: string; paradigma: FIAParadigma; clase: string }>;
 }
 
 // ============================================
-// Session Manager
+// Session Manager - Thin Client to Backend
 // ============================================
 
 export class AAIASessionManager {
-    private sessions: Map<string, InternalAAIASession> = new Map();
-    private cleanupInterval: ReturnType<typeof setInterval> | null = null;
-    private readonly SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
-    private readonly CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+    private client: AAIABackendClient;
+    private backendUrl: string;
 
-    constructor() {
-        this.startCleanupRoutine();
-        l.info("AAIASessionManager initialized");
+    constructor(backendUrl = 'http://localhost:8007/api') {
+        this.backendUrl = backendUrl;
+        this.client = createAAIABackendClient(backendUrl);
+        l.i("AAIASessionManager initialized (thin client)", { backendUrl });
     }
 
     /**
-     * Get available apps catalog
+     * Get available apps catalog from Backend
      */
-    getAvailableApps(): IAAIAApp[] {
-        return Object.values(DEMO_APPS);
+    async getAvailableApps(): Promise<IAAIAApp[]> {
+        try {
+            const response = await this.client.listApps();
+            return response.apps.map(app => ({
+                id: app.id,
+                nombre: app.nombre,
+                descripcion: app.descripcion,
+                paradigmaPrincipal: app.paradigmaPrincipal as FIAParadigma,
+                fias: [], // Apps list doesn't include FIA details
+            }));
+        } catch (error) {
+            l.e("Failed to get available apps", { error });
+            throw error;
+        }
     }
 
     /**
-     * Create a new AAIA session with the specified app
+     * Create a new AAIA session
      */
     async createSession(appId: string): Promise<AAIASessionDetail> {
-        const app = DEMO_APPS[appId];
-        if (!app) {
-            throw new Error(`App not found: ${appId}. Available: ${Object.keys(DEMO_APPS).join(', ')}`);
+        l.i("Creating session via Backend", { appId });
+        
+        const response = await this.client.createSession(appId);
+        
+        if (!response.success) {
+            throw new Error(response.error || `Failed to create session for app: ${appId}`);
         }
 
-        const sessionId = `aaia_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        // Get full session details
+        const sessionDetail = await this.client.getSession(response.sessionId);
         
-        // Initialize FIA states
-        const fiasState: FIAState[] = app.fias.map((fiaConfig, index) => ({
-            index,
-            nombre: fiaConfig.nombre,
-            paradigma: fiaConfig.paradigma,
-            clase: fiaConfig.clase,
-            runState: RunStateEnum.STOP,
-        }));
-
-        // Initialize mundo state
-        const mundoState: MundoState = {
-            ciclo: 0,
-            modelo: {},
-        };
-
-        const session: InternalAAIASession = {
-            id: sessionId,
-            appId,
-            app,
-            createdAt: new Date(),
-            lastUsedAt: new Date(),
-            mundoState,
-            fiasState,
-        };
-
-        this.sessions.set(sessionId, session);
-        l.info("Created AAIA session", { sessionId, appId, fiasCount: fiasState.length });
-
         return {
-            sessionId,
+            sessionId: response.sessionId,
             appId,
-            appName: app.nombre,
-            createdAt: session.createdAt.toISOString(),
-            fias: fiasState,
-            mundo: mundoState,
+            appName: sessionDetail.session.appId, // Use appId as name for now
+            createdAt: sessionDetail.session.createdAt,
+            fias: sessionDetail.fias,
+            mundo: sessionDetail.mundo,
         };
     }
 
     /**
      * List all active sessions
      */
-    listSessions(): AAIASessionInfo[] {
-        const now = Date.now();
-        return Array.from(this.sessions.values()).map((session) => {
-            const ageMinutes = Math.floor((now - session.createdAt.getTime()) / 60000);
-            return {
-                sessionId: session.id,
-                appId: session.appId,
-                createdAt: session.createdAt.toISOString(),
-                lastUsedAt: session.lastUsedAt.toISOString(),
-                ageMinutes,
-                fiasCount: session.fiasState.length,
-                ciclo: session.mundoState.ciclo,
-            };
-        });
+    async listSessions(): Promise<AAIASessionInfo[]> {
+        const response = await this.client.listSessions();
+        
+        return response.sessions.map(session => ({
+            sessionId: session.sessionId,
+            appId: session.appId,
+            createdAt: session.createdAt,
+            lastUsedAt: session.lastUsedAt,
+            ageMinutes: session.ageMinutes,
+            fiasCount: session.fiasCount,
+            ciclo: 0, // Ciclo is now in mundo.modelo
+        }));
     }
 
     /**
      * Get FIAs for a session
      */
-    getFIAs(sessionId: string): FIAState[] | null {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
+    async getFIAs(sessionId: string): Promise<IFIAInfo[] | null> {
+        try {
+            const response = await this.client.listFIAs(sessionId);
+            return response.fias;
+        } catch (error) {
+            l.e("Failed to get FIAs", { sessionId, error });
             return null;
         }
-        session.lastUsedAt = new Date();
-        return session.fiasState;
     }
 
     /**
@@ -215,45 +152,19 @@ export class AAIASessionManager {
         eferencia?: IEferencia;
         error?: string;
     }> {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            return { success: false, error: `Session not found: ${sessionId}` };
+        try {
+            const response = await this.client.stepFIA(sessionId, fiaIndex);
+            
+            return {
+                success: response.success,
+                eferencia: response.eferencia,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: (error as Error).message,
+            };
         }
-
-        const fia = session.fiasState[fiaIndex];
-        if (!fia) {
-            return { success: false, error: `FIA not found at index ${fiaIndex}` };
-        }
-
-        session.lastUsedAt = new Date();
-        session.mundoState.ciclo++;
-        
-        // Simulate FIA step - in real implementation, this would call AAIAGallery runtime
-        const eferencia: IEferencia = {
-            tipo: 'estado',
-            payload: {
-                fiaIndex,
-                nombre: fia.nombre,
-                ciclo: session.mundoState.ciclo,
-                simulated: true,
-            },
-            timestamp: new Date().toISOString(),
-        };
-
-        fia.runState = RunStateEnum.PLAY_STEP;
-        session.mundoState.ultimaEferencia = eferencia;
-
-        l.info("Stepped FIA", { 
-            sessionId, 
-            fiaIndex, 
-            nombre: fia.nombre,
-            ciclo: session.mundoState.ciclo,
-        });
-
-        return {
-            success: true,
-            eferencia,
-        };
     }
 
     /**
@@ -264,110 +175,83 @@ export class AAIASessionManager {
         processedBy?: number[];
         error?: string;
     }> {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            return { success: false, error: `Session not found: ${sessionId}` };
+        try {
+            const response = await this.client.sendPercepto(sessionId, percepto);
+            
+            return {
+                success: response.success,
+                processedBy: response.processedBy,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: (error as Error).message,
+            };
         }
-
-        session.lastUsedAt = new Date();
-        session.mundoState.ultimoPercepto = percepto;
-        session.mundoState.ciclo++;
-
-        // Update mundo model with percepto payload
-        session.mundoState.modelo = {
-            ...session.mundoState.modelo,
-            lastPercepto: percepto,
-        };
-
-        // Simulate all FIAs processing the percepto
-        const processedBy = session.fiasState.map(fia => fia.index);
-
-        l.info("Percepto sent to mundo", { 
-            sessionId, 
-            tipo: percepto.tipo, 
-            processedBy,
-            ciclo: session.mundoState.ciclo,
-        });
-
-        return {
-            success: true,
-            processedBy,
-        };
     }
 
     /**
      * Query mundo state
      */
-    queryMundo(sessionId: string): MundoState | null {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
+    async queryMundo(sessionId: string): Promise<IMundoState | null> {
+        try {
+            const response = await this.client.getMundoState(sessionId);
+            return response.mundo;
+        } catch (error) {
+            l.e("Failed to query mundo", { sessionId, error });
             return null;
         }
-        session.lastUsedAt = new Date();
-        return session.mundoState;
     }
 
     /**
      * Set FIA run state
      */
-    setFIAState(sessionId: string, fiaIndex: number, state: RunStateEnum): {
+    async setFIAState(sessionId: string, fiaIndex: number, state: RunStateEnum): Promise<{
         success: boolean;
         previousState?: RunStateEnum;
         error?: string;
-    } {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            return { success: false, error: `Session not found: ${sessionId}` };
+    }> {
+        try {
+            let response;
+            if (state === RunStateEnum.PLAY) {
+                response = await this.client.startFIA(sessionId, fiaIndex);
+            } else if (state === RunStateEnum.STOP) {
+                response = await this.client.stopFIA(sessionId, fiaIndex);
+            } else {
+                // For other states, use start (Backend will handle appropriately)
+                response = await this.client.startFIA(sessionId, fiaIndex);
+            }
+
+            return {
+                success: response.success,
+                previousState: response.state?.runState,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: (error as Error).message,
+            };
         }
-
-        const fia = session.fiasState[fiaIndex];
-        if (!fia) {
-            return { success: false, error: `FIA not found at index ${fiaIndex}` };
-        }
-
-        const previousState = fia.runState;
-        fia.runState = state;
-        session.lastUsedAt = new Date();
-
-        l.info("FIA state changed", { sessionId, fiaIndex, previousState, newState: state });
-
-        return { success: true, previousState };
     }
 
     /**
      * Destroy a session
      */
-    destroySession(sessionId: string): boolean {
-        const existed = this.sessions.has(sessionId);
-        if (existed) {
-            this.sessions.delete(sessionId);
-            l.info("Destroyed AAIA session", { sessionId });
+    async destroySession(sessionId: string): Promise<boolean> {
+        try {
+            const response = await this.client.destroySession(sessionId);
+            return response.success;
+        } catch (error) {
+            l.e("Failed to destroy session", { sessionId, error });
+            return false;
         }
-        return existed;
     }
 
     /**
-     * Cleanup expired sessions
-     */
-    private startCleanupRoutine(): void {
-        this.cleanupInterval = setInterval(() => {
-            const now = Date.now();
-            for (const [sessionId, session] of this.sessions.entries()) {
-                if (now - session.lastUsedAt.getTime() > this.SESSION_TIMEOUT_MS) {
-                    this.sessions.delete(sessionId);
-                    l.info("Cleaned up expired AAIA session", { sessionId });
-                }
-            }
-        }, this.CLEANUP_INTERVAL_MS);
-    }
-
-    /**
-     * Stop cleanup routine
+     * Stop cleanup routine (no-op for thin client)
      */
     stopCleanup(): void {
-        if (this.cleanupInterval) {
-            clearInterval(this.cleanupInterval);
-            this.cleanupInterval = null;
-        }
+        // Backend handles cleanup
+        l.d("Cleanup is handled by Backend");
     }
 }

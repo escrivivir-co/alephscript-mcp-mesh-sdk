@@ -2,6 +2,7 @@
  * Clients barrel export
  */
 export * from './PrologBackendClient';
+export * from './AAIABackendClient';
 // Exclude ApiError from TypedPromptBackendClient (conflicts with PrologBackendClient)
 export { 
     Schema,
