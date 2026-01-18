@@ -493,9 +493,10 @@ export class FileDatabase {
  */
 export function getDefaultDataDir(): string {
     // mcp-mesh-sdk is at MCPGallery/mcp-mesh-sdk, need to go up to workspace root
-    const moduleDir = path.dirname(new URL(import.meta.url).pathname);
-    // moduleDir = .../MCPGallery/mcp-mesh-sdk/src/managers
-    // Go up 4 levels: managers -> src -> mcp-mesh-sdk -> MCPGallery -> ALEPH
+    // Use __dirname (CommonJS) - works after TypeScript compiles to dist/
+    const moduleDir = __dirname;
+    // moduleDir = .../MCPGallery/mcp-mesh-sdk/dist/managers (after compile)
+    // Go up 4 levels: managers -> dist -> mcp-mesh-sdk -> MCPGallery -> ALEPH
     const workspaceRoot = path.resolve(moduleDir, '..', '..', '..', '..');
     return path.join(workspaceRoot, 'ARCHIVO', 'PLUGINS', 'MCP_DATA');
 }
