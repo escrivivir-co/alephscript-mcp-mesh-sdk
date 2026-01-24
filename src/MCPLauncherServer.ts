@@ -91,6 +91,8 @@ export class MCPLauncherServer extends BaseMCPServer {
             totalRestarts: 0,
             lastGlobalCheck: 0,
         };
+
+        // The base will call abstract this.setupServerSpecifics()
     }
 
     /**
@@ -1800,6 +1802,17 @@ export class MCPLauncherServer extends BaseMCPServer {
 
         for (const [serverId, config] of this.requestToLaunchConfigs) {
             try {
+                const status: ServerStatus = {
+                    id: config.id,
+                    name: config.name || "",
+                    status: "stopped",
+                    pid: -1, // Unknown PID for existing process
+                    port: config.port || 0,
+                    startTime: Date.now(), // We don't know the real start time
+                    restartCount: 0,
+                    uptime: 0,
+                };
+                this.session.managedServers.set(serverId, status)
                 const result = await this.launchServer(config);
                 results[serverId] = {
                     success: true,
