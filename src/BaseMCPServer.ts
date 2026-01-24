@@ -123,7 +123,7 @@ export abstract class BaseMCPServer {
      */
     private setupLegacyRestAPI(): void {
         // Resources endpoints
-        this.app.get("/resources/:resourceId(*)", async (req, res) => {
+        this.app.get("/resources/:resourceId", async (req, res) => {
             try {
                 const resourceId = req.params.resourceId;
                 l.v(
