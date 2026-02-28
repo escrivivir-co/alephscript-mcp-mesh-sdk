@@ -16,6 +16,7 @@ import { DEFAULT_LAUNCHER_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_LAUNCHER_M
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 import { DEFAULT_PROLOG_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_PROLOG_MCP_SERVER_CONFIG";
 import { DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG";
+import { DEFAULT_FIREHOSE_MCP_SERVER_CONFIG } from "@/configs/DEFAULT_FIREHOSE_MCP_SERVER_CONFIG";
 import { l } from "./Logger";
 import { AppConfig, DEFAULT_APP_CONFIG, getConfigOrDefault } from "@/configs/app.config";
 
@@ -34,6 +35,7 @@ export const CONFIGS_BASE_MCP_SERVER = {
     "devops-mcp-server": DEFAULT_DEVOPS_MCP_SERVER_CONFIG,
     "prolog-mcp-server": DEFAULT_PROLOG_MCP_SERVER_CONFIG,
     "typed-prompt-mcp-server": DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG,
+    "firehose-mcp-server": DEFAULT_FIREHOSE_MCP_SERVER_CONFIG,
 };
 
 /**
