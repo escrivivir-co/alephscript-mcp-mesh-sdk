@@ -6,6 +6,7 @@ import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE
 import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from "./DEFAULT_WIKI_MCP_SERVER_CONFIG";
 import { DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG } from "./DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG";
 import { DEFAULT_FIREHOSE_MCP_SERVER_CONFIG } from "./DEFAULT_FIREHOSE_MCP_SERVER_CONFIG";
+import { DEFAULT_BOTHUB_MCP_SERVER_CONFIG } from "./DEFAULT_BOTHUB_MCP_SERVER_CONFIG";
 
 export interface AppConfig {
     [key: string]: any;
@@ -24,6 +25,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
             "prolog-mcp-server": DEFAULT_PROLOG_MCP_SERVER_CONFIG,
             "typed-prompt-mcp-server": DEFAULT_TYPED_PROMPT_MCP_SERVER_CONFIG,
             "firehose-mcp-server": DEFAULT_FIREHOSE_MCP_SERVER_CONFIG,
+            "bothub-mcp-server": DEFAULT_BOTHUB_MCP_SERVER_CONFIG,
         },
     },
 }
