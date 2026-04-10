@@ -26,6 +26,7 @@ const log = {
 
 export interface JetstreamEvent {
 	did: string;
+	handle?: string;         // Resolved via PLC Directory (may be undefined until cached)
 	time_us: number;
 	kind: "commit" | "identity" | "account";
 	commit?: {

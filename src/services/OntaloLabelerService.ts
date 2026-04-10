@@ -65,6 +65,7 @@ export interface AutoEtiqueta {
 export interface LabeledPost {
 	// Source event data
 	did: string;
+	handle?: string;         // Resolved via PLC Directory (may be undefined until cached)
 	rkey: string;
 	uri: string;
 	collection: string;

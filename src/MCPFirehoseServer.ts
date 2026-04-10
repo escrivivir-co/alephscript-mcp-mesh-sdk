@@ -17,6 +17,8 @@ import { BlueskyAuthService } from "./services/BlueskyAuthService";
 import { AlephScriptClient } from "./libs/alephscript-client";
 import { l } from "./Logger";
 import { z } from "zod";
+import * as fs from "fs";
+import * as path from "path";
 
 function getHash(key: string): string {
 	const h = (s: string) => s.substring(s.length - 2);
@@ -39,6 +41,13 @@ export class MCPFirehoseServer extends BaseMCPServer {
 	// Ring buffer of raw filtered events (no labeling, for Node-RED delegation)
 	private rawBuffer: JetstreamEvent[] = [];
 	private rawBufferCursor = 0; // monotonic counter for polling
+
+	// DID → handle cache (populated lazily via PLC Directory, persisted to disk)
+	private didCache = new Map<string, string>();
+	private readonly DID_CACHE_PATH = path.resolve(__dirname, "..", "data", "did-cache.json");
+	private didCacheDirty = false;
+	private didCacheSaveTimer: ReturnType<typeof setInterval> | null = null;
+	private readonly DID_CACHE_SAVE_INTERVAL_MS = 30_000; // auto-save every 30s
 
 	// Pipeline stats
 	private pipelineStats = {
@@ -68,13 +77,49 @@ export class MCPFirehoseServer extends BaseMCPServer {
 		this.labeler = new OntaloLabelerService();
 		this.bsky = new BlueskyAuthService();
 
+		// Load persisted DID cache
+		this.loadDidCache();
+
 		// Wire the pipeline
-		this.consumer.onEvent((event) => this.handleFirehoseEventNoProcessing(event));
+		this.consumer.onEvent(async (event) => this.handleFirehoseEventNoProcessing(event));
 
 		// Initialize IcariaBot for Socket.IO mesh
-		this.initIcariaBot();
+		// this.initIcariaBot();
 
 		l.info("MCPFirehoseServer initialized");
+	}
+
+	// --- DID cache persistence ---
+
+	private loadDidCache(): void {
+		try {
+			if (fs.existsSync(this.DID_CACHE_PATH)) {
+				const raw = fs.readFileSync(this.DID_CACHE_PATH, "utf-8");
+				const entries: [string, string][] = JSON.parse(raw);
+				for (const [k, v] of entries) {
+					this.didCache.set(k, v);
+				}
+				l.info(`DID cache loaded: ${this.didCache.size} entries`, { path: this.DID_CACHE_PATH });
+			}
+		} catch (err) {
+			l.w("Failed to load DID cache, starting fresh", { error: String(err) });
+		}
+
+		// Start periodic auto-save
+		this.didCacheSaveTimer = setInterval(() => this.saveDidCache(), this.DID_CACHE_SAVE_INTERVAL_MS);
+	}
+
+	private saveDidCache(): void {
+		if (!this.didCacheDirty) return;
+		try {
+			const dir = path.dirname(this.DID_CACHE_PATH);
+			if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+			fs.writeFileSync(this.DID_CACHE_PATH, JSON.stringify([...this.didCache.entries()], null, 2));
+			this.didCacheDirty = false;
+			l.d(`DID cache saved: ${this.didCache.size} entries`);
+		} catch (err) {
+			l.w("Failed to save DID cache", { error: String(err) });
+		}
 	}
 
 	private initIcariaBot(): void {
@@ -134,8 +179,32 @@ export class MCPFirehoseServer extends BaseMCPServer {
 		l.info("MCPFirehoseServer tools and resources registered");
 	}
 
+	// --- Resolve DID → handle (PLC Directory, with in-memory cache) ---
+	private async resolveHandle(did: string): Promise<string> {
+		const cached = this.didCache.get(did);
+		if (cached !== undefined) return cached;
+
+		try {
+			const res = await fetch(`https://plc.directory/${encodeURIComponent(did)}`);
+			if (res.ok) {
+				const doc = await res.json() as { alsoKnownAs?: string[] };
+				const atUri = doc.alsoKnownAs?.[0];
+				const handle = atUri ? atUri.replace("at://", "") : did;
+				this.didCache.set(did, handle);
+				this.didCacheDirty = true;
+				return handle;
+			}
+		} catch {
+			// Network error — keep DID as fallback
+		}
+
+		this.didCache.set(did, did);
+		this.didCacheDirty = true;
+		return did;
+	}
+
 	// --- Pipeline handler (raw mode: filter only, no labeling) ---
-	private handleFirehoseEventNoProcessing(event: JetstreamEvent): void {
+	private async handleFirehoseEventNoProcessing(event: JetstreamEvent): Promise<void> {
 		this.pipelineStats.received++;
 
 		const filterResult = this.filterEngine.evaluate(event);
@@ -143,6 +212,9 @@ export class MCPFirehoseServer extends BaseMCPServer {
 			this.pipelineStats.filtered++;
 			return;
 		}
+
+		// Resolve handle (cache hit = sync; miss = PLC Directory fetch)
+		event.handle = await this.resolveHandle(event.did);
 
 		// Buffer raw filtered event — no labeling, delegation to downstream (Node-RED)
 		this.rawBuffer.push(event);
@@ -152,7 +224,7 @@ export class MCPFirehoseServer extends BaseMCPServer {
 		}
 	}
 
-	private handleFirehoseEvent(event: JetstreamEvent): void {
+	private async handleFirehoseEvent(event: JetstreamEvent): Promise<void> {
 		this.pipelineStats.received++;
 
 		const filterResult = this.filterEngine.evaluate(event);
@@ -166,6 +238,9 @@ export class MCPFirehoseServer extends BaseMCPServer {
 			this.pipelineStats.errors++;
 			return;
 		}
+
+		// Resolve handle (cache hit = sync; miss = PLC Directory fetch)
+		const handle = await this.resolveHandle(event.did);
 
 		const labeled = this.labeler.labelPost(
 			record.text,
@@ -182,6 +257,9 @@ export class MCPFirehoseServer extends BaseMCPServer {
 			this.pipelineStats.errors++;
 			return;
 		}
+
+		// Attach resolved handle to labeled post
+		labeled.handle = handle;
 
 		// Ring buffer
 		this.labeledBuffer.push(labeled);
@@ -861,6 +939,8 @@ export class MCPFirehoseServer extends BaseMCPServer {
 
 	async shutdown(): Promise<void> {
 		this.consumer.stop();
+		if (this.didCacheSaveTimer) clearInterval(this.didCacheSaveTimer);
+		this.saveDidCache(); // persist on shutdown
 		await super.shutdown();
 	}
 }

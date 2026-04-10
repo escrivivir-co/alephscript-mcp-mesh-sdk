@@ -8,6 +8,9 @@
  * Same pattern as BotHubSDK's examples/dashboard but without React UI.
  */
 
+import * as path from "node:path";
+import * as fs from "node:fs";
+import { spawn, type ChildProcess } from "node:child_process";
 import { BaseMCPServer } from "./BaseMCPServer";
 import { DEFAULT_BOTHUB_MCP_SERVER_CONFIG } from "./configs/DEFAULT_BOTHUB_MCP_SERVER_CONFIG";
 import { AlephScriptClient } from "./libs/alephscript-client";
@@ -27,6 +30,8 @@ import {
 	connectEmitterToStore,
 	createStore,
 	type Store,
+	// Message persistence
+	FileMessageStore,
 	// IACM builders
 	buildRequest,
 	buildReport,
@@ -98,6 +103,27 @@ function buildIacmFromContent(
 }
 
 // ---------------------------------------------------------------------------
+// App Launcher Types + Constants
+// ---------------------------------------------------------------------------
+
+const KNOWN_APPS = ["console-app", "dashboard", "iacm-demo"] as const;
+type KnownAppName = typeof KNOWN_APPS[number];
+
+interface AppProcessInfo {
+	pid: number;
+	appName: string;
+	startedAt: string;
+	status: "running" | "stopped" | "error";
+	command: string;
+	args: string[];
+	cwd: string;
+	recentLogs: string[];
+	exitCode: number | null;
+}
+
+const MAX_APP_LOGS = 50;
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
@@ -107,19 +133,37 @@ export class MCPBotHubServer extends BaseMCPServer {
 	private unsubBridge: (() => void) | null = null;
 	private bootResult: BootResult | null = null;
 	private meshClient: AlephScriptClient | null = null;
+	// App launcher state
+	private readonly launchedApps: Map<string, { info: AppProcessInfo; proc: ChildProcess }> = new Map();
+	// Data paths (Scriptorium canonical location)
+	private readonly sdkDir: string;
+	private readonly dataDir: string;
+	// Message cursor for incremental polling (bothub_get_messages)
+	private messageCursor = 0;
 
 	constructor() {
 		super(DEFAULT_BOTHUB_MCP_SERVER_CONFIG);
 
+		// Resolve Scriptorium data paths (override via env vars)
+		const workspaceRoot = path.resolve(__dirname, "../../..");
+		this.sdkDir = process.env.BOTHUB_SDK_DIR || path.join(workspaceRoot, "BotHubSDK");
+		this.dataDir = process.env.BOTHUB_DATA_DIR || path.join(workspaceRoot, "ARCHIVO", "PLUGINS", "BOT_HUB_SDK", "data");
+
+		// Ensure data directory exists (non-blocking)
+		try { fs.mkdirSync(this.dataDir, { recursive: true }); } catch { /* ignore */ }
+
+		// Persistent message store (ARCHIVO/PLUGINS/BOT_HUB_SDK/data/messages.json)
+		const messageStore = new FileMessageStore(path.join(this.dataDir, "messages.json"));
+
 		// Create emitter + store + bridge (same pattern as BotHubSDK examples/dashboard)
 		this.emitter = new RuntimeEmitter();
 		this.store = createStore<BaseRuntimeState>(getDefaultBaseState());
-		this.unsubBridge = connectEmitterToStore(this.emitter, this.store);
+		this.unsubBridge = connectEmitterToStore(this.emitter, this.store, { messageStore });
 
 		// Socket.IO mesh client
 		this.initMeshClient();
 
-		l.info("MCPBotHubServer initialized with RuntimeEmitter → Store bridge");
+		l.info("MCPBotHubServer v2.0 initialized", { dataDir: this.dataDir, sdkDir: this.sdkDir });
 	}
 
 	// -----------------------------------------------------------------------
@@ -194,7 +238,7 @@ export class MCPBotHubServer extends BaseMCPServer {
 			this.meshClient.connect();
 		}
 
-		l.info("MCPBotHubServer: 8 tools, 3 resources, 3 prompts registered");
+		l.info("MCPBotHubServer: 14 tools, 5 resources, 3 prompts registered");
 	}
 
 	// -----------------------------------------------------------------------
@@ -215,11 +259,12 @@ export class MCPBotHubServer extends BaseMCPServer {
 					return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Bot already running", status: this.store.getState().botStatus }) }] };
 				}
 
-				const resolvedEnvDir = envDir || process.env.BOTHUB_ENV_DIR || "../../BotHubSDK";
+				const resolvedEnvDir = envDir || process.env.BOTHUB_ENV_DIR || this.sdkDir;
 				const opts: BootBotOptions = {
 					plugins: [],
 					envDir: resolvedEnvDir,
-					chatStorePath: `${resolvedEnvDir}/.chats.json`,
+					dataDir: this.dataDir,
+					chatStorePath: path.join(this.dataDir, "chats.json"),
 					emitter: this.emitter,
 					nonInteractive: true,
 				};
@@ -428,10 +473,247 @@ export class MCPBotHubServer extends BaseMCPServer {
 				}
 			}
 		);
+
+		// ── 9. bothub_get_messages ─────────────────────────────────────────
+		this.server.tool(
+			"bothub_get_messages",
+			"Get recent chat messages with incremental cursor. Poll repeatedly with nextCursor to receive only new messages.",
+			{
+				limit: z.number().int().min(1).max(200).optional().describe("Max messages to return. Default: 50."),
+				since_cursor: z.number().int().min(0).optional().describe("Index cursor: return only messages from this index onward. Default: 0 (all)."),
+			},
+			async ({ limit = 50, since_cursor = 0 }) => {
+				const msgs: any[] = (this.store.getState() as any).messages ?? [];
+				const slice = msgs.slice(since_cursor, since_cursor + limit);
+				const nextCursor = since_cursor + slice.length;
+				return {
+					content: [{
+						type: "text" as const,
+						text: JSON.stringify({ messages: slice, nextCursor, total: msgs.length, hasMore: nextCursor < msgs.length }, null, 2),
+					}],
+				};
+			}
+		);
+
+		// ── 10. bothub_get_chat_history ───────────────────────────────────
+		this.server.tool(
+			"bothub_get_chat_history",
+			"Get message history filtered by a specific chat ID.",
+			{
+				chatId: z.number().describe("Chat ID to filter messages for"),
+				limit: z.number().int().min(1).max(100).optional().describe("Max messages. Default: 20."),
+			},
+			async ({ chatId, limit = 20 }) => {
+				const all: any[] = (this.store.getState() as any).messages ?? [];
+				const forChat = all.filter((m: any) => m.chatId === chatId).slice(-limit);
+				return {
+					content: [{
+						type: "text" as const,
+						text: JSON.stringify({ chatId, messages: forChat, count: forChat.length }, null, 2),
+					}],
+				};
+			}
+		);
+
+		// ── 11. bothub_list_apps ──────────────────────────────────────────
+		this.server.tool(
+			"bothub_list_apps",
+			"List available BotHubSDK apps (console-app, dashboard, iacm-demo) and their current status.",
+			{},
+			async () => {
+				const apps = KNOWN_APPS.map((name) => {
+					const launched = this.launchedApps.get(name);
+					const exampleDir = path.join(this.sdkDir, "examples", name);
+					const installed = fs.existsSync(path.join(exampleDir, "node_modules")) || fs.existsSync(path.join(exampleDir, "package.json"));
+					return {
+						name,
+						status: launched ? launched.info.status : "stopped",
+						pid: launched ? launched.info.pid : null,
+						startedAt: launched ? launched.info.startedAt : null,
+						installed,
+						exampleDir,
+					};
+				});
+				return {
+					content: [{
+						type: "text" as const,
+						text: JSON.stringify({ apps, sdkDir: this.sdkDir, dataDir: this.dataDir }, null, 2),
+					}],
+				};
+			}
+		);
+
+		// ── 12. bothub_launch_app ─────────────────────────────────────────
+		this.server.tool(
+			"bothub_launch_app",
+			"Launch a BotHubSDK app (console-app, dashboard, iacm-demo) as a child process managed by this MCP server.",
+			{
+				appName: z.enum(["console-app", "dashboard", "iacm-demo"]).describe("App to launch"),
+				mockMode: z.boolean().optional().describe("Force mock mode (no Telegram). Default: true."),
+			},
+			async ({ appName, mockMode = true }) => {
+				// Check already running
+				if (this.launchedApps.has(appName)) {
+					const existing = this.launchedApps.get(appName)!;
+					if (existing.info.status === "running") {
+						return { content: [{ type: "text" as const, text: JSON.stringify({ error: `App '${appName}' already running (PID ${existing.info.pid})` }) }] };
+					}
+					this.launchedApps.delete(appName);
+				}
+
+				// Resolve command/args/cwd per app
+				let command: string;
+				let args: string[];
+				let cwd: string;
+
+				if (appName === "iacm-demo") {
+					// iacm-demo has no root npm script — run directly from example dir
+					command = process.platform === "win32" ? "bun.exe" : "bun";
+					args = mockMode ? ["run", "mock"] : ["run", "dev"];
+					cwd = path.join(this.sdkDir, "examples", "iacm-demo");
+				} else {
+					// console-app and dashboard have root npm scripts
+					command = process.platform === "win32" ? "npm.cmd" : "npm";
+					args = ["run", appName === "dashboard" ? "dev:dashboard" : "dev"];
+					cwd = this.sdkDir;
+				}
+
+				if (!fs.existsSync(cwd)) {
+					return { content: [{ type: "text" as const, text: JSON.stringify({ error: `Working dir not found: ${cwd}. Run 'BHS: Setup [Examples]' first.` }) }] };
+				}
+
+				const info: AppProcessInfo = {
+					pid: -1,
+					appName,
+					startedAt: new Date().toISOString(),
+					status: "running",
+					command,
+					args,
+					cwd,
+					recentLogs: [],
+					exitCode: null,
+				};
+
+				// Pass mock env flag; apps that use bootBot will pick it up via nonInteractive + no BOT_TOKEN
+				const env: NodeJS.ProcessEnv = {
+					...process.env,
+					...(mockMode ? { BOT_TOKEN: "" } : {}),
+					BOTHUB_DATA_DIR: this.dataDir,
+				};
+
+				const proc = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+				info.pid = proc.pid ?? -1;
+
+				proc.stdout?.on("data", (chunk: Buffer) => {
+					const line = chunk.toString().trimEnd();
+					if (line) {
+						info.recentLogs.push(line);
+						if (info.recentLogs.length > MAX_APP_LOGS) info.recentLogs.shift();
+					}
+				});
+				proc.stderr?.on("data", (chunk: Buffer) => {
+					const line = chunk.toString().trimEnd();
+					if (line) {
+						info.recentLogs.push(`[ERR] ${line}`);
+						if (info.recentLogs.length > MAX_APP_LOGS) info.recentLogs.shift();
+					}
+				});
+				proc.on("exit", (code) => {
+					info.status = code === 0 ? "stopped" : "error";
+					info.exitCode = code;
+					l.info(`BotHub app '${appName}' exited`, { code });
+				});
+				proc.on("error", (err) => {
+					info.status = "error";
+					info.recentLogs.push(`[PROC_ERROR] ${err.message}`);
+					l.e(`BotHub app '${appName}' spawn error`, { error: err });
+				});
+
+				this.launchedApps.set(appName, { info, proc });
+
+				return {
+					content: [{
+						type: "text" as const,
+						text: JSON.stringify({ launched: true, appName, pid: info.pid, command, args, cwd, mockMode, dataDir: this.dataDir }, null, 2),
+					}],
+				};
+			}
+		);
+
+		// ── 13. bothub_stop_app ───────────────────────────────────────────
+		this.server.tool(
+			"bothub_stop_app",
+			"Stop a running BotHubSDK app launched via bothub_launch_app.",
+			{
+				appName: z.enum(["console-app", "dashboard", "iacm-demo"]).describe("App to stop"),
+			},
+			async ({ appName }) => {
+				const launched = this.launchedApps.get(appName);
+				if (!launched) {
+					return { content: [{ type: "text" as const, text: JSON.stringify({ error: `App '${appName}' is not running.` }) }] };
+				}
+				try {
+					launched.proc.kill("SIGTERM");
+					launched.info.status = "stopped";
+					this.launchedApps.delete(appName);
+					return { content: [{ type: "text" as const, text: JSON.stringify({ stopped: true, appName, pid: launched.info.pid }) }] };
+				} catch (error: any) {
+					return { content: [{ type: "text" as const, text: JSON.stringify({ error: error.message }) }] };
+				}
+			}
+		);
+
+		// ── 14. bothub_app_status ─────────────────────────────────────────
+		this.server.tool(
+			"bothub_app_status",
+			"Get status and recent logs for launched BotHubSDK apps.",
+			{
+				appName: z.enum(["console-app", "dashboard", "iacm-demo"]).optional().describe("Specific app. Omit for all apps."),
+			},
+			async ({ appName }) => {
+				if (appName) {
+					const launched = this.launchedApps.get(appName);
+					if (!launched) {
+						return { content: [{ type: "text" as const, text: JSON.stringify({ appName, status: "stopped", pid: null }) }] };
+					}
+					const uptimeMs = Date.now() - new Date(launched.info.startedAt).getTime();
+					return {
+						content: [{
+							type: "text" as const,
+							text: JSON.stringify({
+								appName,
+								status: launched.info.status,
+								pid: launched.info.pid,
+								startedAt: launched.info.startedAt,
+								uptimeMs,
+								uptimeFmt: `${Math.floor(uptimeMs / 60000)}m ${Math.floor((uptimeMs % 60000) / 1000)}s`,
+								recentLogs: launched.info.recentLogs.slice(-20),
+								exitCode: launched.info.exitCode,
+							}, null, 2),
+						}],
+					};
+				}
+				// All apps
+				const all = KNOWN_APPS.map((name) => {
+					const launched = this.launchedApps.get(name);
+					if (!launched) return { name, status: "stopped", pid: null };
+					const uptimeMs = Date.now() - new Date(launched.info.startedAt).getTime();
+					return {
+						name,
+						status: launched.info.status,
+						pid: launched.info.pid,
+						startedAt: launched.info.startedAt,
+						uptimeMs,
+						logCount: launched.info.recentLogs.length,
+					};
+				});
+				return { content: [{ type: "text" as const, text: JSON.stringify({ apps: all, runningCount: all.filter((a) => a.status === "running").length }, null, 2) }] };
+			}
+		);
 	}
 
 	// -----------------------------------------------------------------------
-	// RESOURCES (3)
+	// RESOURCES (5)
 	// -----------------------------------------------------------------------
 
 	private setupResources(): void {
@@ -482,6 +764,87 @@ export class MCPBotHubServer extends BaseMCPServer {
 					uri: "bothub://messages/recent",
 					mimeType: "application/json",
 					text: JSON.stringify(this.store.getState().messages, null, 2),
+				}],
+			})
+		);
+
+		// 4. App launcher registry
+		this.server.resource(
+			"bothub-apps",
+			"bothub://apps/registry",
+			{
+				description: "BotHubSDK apps registry: available apps, install status, and runtime state",
+				mimeType: "application/json",
+			},
+			async () => {
+				const apps = KNOWN_APPS.map((name) => {
+					const launched = this.launchedApps.get(name);
+					const exampleDir = path.join(this.sdkDir, "examples", name);
+					return {
+						name,
+						status: launched ? launched.info.status : "stopped",
+						pid: launched ? launched.info.pid : null,
+						installed: fs.existsSync(path.join(exampleDir, "package.json")),
+					};
+				});
+				return {
+					contents: [{
+						uri: "bothub://apps/registry",
+						mimeType: "application/json",
+						text: JSON.stringify({ apps, sdkDir: this.sdkDir, dataDir: this.dataDir }, null, 2),
+					}],
+				};
+			}
+		);
+
+		// 5. IACM protocol reference (markdown, for direct context injection)
+		this.server.resource(
+			"bothub-iacm-protocol",
+			"bothub://iacm/reference",
+			{
+				description: "IACM v1.0 protocol reference: 11 message types, builders, format; same content as bothub_iacm_protocol prompt but as a resource",
+				mimeType: "text/markdown",
+			},
+			async () => ({
+				contents: [{
+					uri: "bothub://iacm/reference",
+					mimeType: "text/markdown",
+					text: `# Protocolo IACM v1.0 (SDS-17)
+
+## Tipos de mensaje (11)
+
+| Tipo | Emoji | Uso |
+|------|-------|-----|
+| REQUEST | 📩 | Solicitar acción a otro agente |
+| REPORT | 📊 | Informar resultado de una tarea |
+| QUESTION | ❓ | Hacer pregunta que requiere respuesta |
+| ANSWER | 💡 | Responder a una QUESTION |
+| PROPOSAL | 📝 | Proponer plan/acción para aprobación |
+| ACKNOWLEDGE | ✅ | Confirmar recepción de mensaje |
+| ACCEPT | 👍 | Aceptar una PROPOSAL |
+| REJECT | 👎 | Rechazar una PROPOSAL con razón |
+| DEFER | ⏳ | Posponer decisión con plazo |
+| FYI | ℹ️ | Información sin acción requerida |
+| URGENT | 🚨 | Mensaje prioritario de atención inmediata |
+
+## Uso con MCP
+
+- **Construir mensaje**: \`bothub_send_iacm\` tool
+- **Parsear desde texto**: \`bothub_parse_iacm\` tool
+- **Spec completa**: \`BotHubSDK/templates/IACM_FORMAT_SPECIFICATION.md\`
+
+## Ejemplo
+
+\`\`\`json
+{
+  "type": "REQUEST",
+  "from_agent": "@aleph",
+  "to_agent": "@ox",
+  "content": "Necesito auditoría del módulo X",
+  "thread_id": "audit-2026-04"
+}
+\`\`\`
+`,
 				}],
 			})
 		);

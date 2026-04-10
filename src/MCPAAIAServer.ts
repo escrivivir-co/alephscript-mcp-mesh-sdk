@@ -36,7 +36,7 @@ export class MCPAAIAServer extends BaseMCPServer {
         this.sessionManager = new AAIASessionManager();
         
         // Initialize PersefonBot for Socket.IO mesh communication
-        this.initPersefonBot();
+        // this.initPersefonBot();
         
         l.info("MCPAAIAServer initialized with session management and Socket.IO");
     }
